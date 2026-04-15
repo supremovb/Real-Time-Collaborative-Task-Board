@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const Task = require("../models/Task");
+const { logActivity } = require("../services/activityService");
 
 const router = express.Router();
 
@@ -72,6 +73,16 @@ router.post("/", async (req, res) => {
     });
 
     req.io.to(task.boardId).emit("task:created", task);
+
+    // Log activity
+    const actorName = req.body.userName || "Someone";
+    await logActivity(task.boardId, {
+      action: "task:created",
+      userName: actorName,
+      taskTitle: task.title,
+      toColumn: task.column,
+    }, req.io);
+
     res.status(201).json(task);
   } catch (err) {
     if (err.name === "ValidationError") {
@@ -125,6 +136,15 @@ router.put("/:id", async (req, res) => {
     if (!task) return res.status(404).json({ error: "Task not found" });
 
     req.io.to(task.boardId).emit("task:updated", task);
+
+    // Log activity
+    const actorName = req.body.userName || "Someone";
+    await logActivity(task.boardId, {
+      action: "task:updated",
+      userName: actorName,
+      taskTitle: task.title,
+    }, req.io);
+
     res.json(task);
   } catch {
     res.status(500).json({ error: "Failed to update task" });
@@ -196,6 +216,19 @@ router.put("/:id/move", async (req, res) => {
     });
 
     req.io.to(task.boardId).emit("board:updated", allTasks);
+
+    // Log activity only when moving to a different column
+    if (oldColumn !== column) {
+      const actorName = req.body.userName || "Someone";
+      await logActivity(task.boardId, {
+        action: "task:moved",
+        userName: actorName,
+        taskTitle: task.title,
+        fromColumn: oldColumn,
+        toColumn: column,
+      }, req.io);
+    }
+
     res.json(allTasks);
   } catch (err) {
     res.status(500).json({ error: "Failed to move task" });
@@ -223,6 +256,16 @@ router.delete("/:id", async (req, res) => {
     );
 
     req.io.to(task.boardId).emit("task:deleted", { id: task._id, boardId: task.boardId });
+
+    // Log activity
+    const actorName = req.body?.userName || "Someone";
+    await logActivity(task.boardId, {
+      action: "task:deleted",
+      userName: actorName,
+      taskTitle: task.title,
+      fromColumn: task.column,
+    }, req.io);
+
     res.json({ message: "Task deleted" });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete task" });

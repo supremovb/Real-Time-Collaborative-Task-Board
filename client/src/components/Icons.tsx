@@ -239,3 +239,28 @@ export const SendIcon = icon(
 export const MessageIcon = icon(
   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
 );
+
+export const HistoryIcon = icon(
+  <>
+    <polyline points="1 4 1 10 7 10" />
+    <path d="M3.51 15a9 9 0 1 0 .49-4.95" />
+    <polyline points="12 7 12 12 15 13" />
+  </>
+);
+
+export const UserPlusIcon = icon(
+  <>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="8.5" cy="7" r="4" />
+    <line x1="20" y1="8" x2="20" y2="14" />
+    <line x1="23" y1="11" x2="17" y2="11" />
+  </>
+);
+
+export const UserMinusIcon = icon(
+  <>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="8.5" cy="7" r="4" />
+    <line x1="23" y1="11" x2="17" y2="11" />
+  </>
+);

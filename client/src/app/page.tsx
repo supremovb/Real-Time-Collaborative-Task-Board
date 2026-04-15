@@ -72,6 +72,19 @@ const FEATURES = [
   { Icon: ShieldIcon, title: "Secured",     desc: "Rate-limited & sanitized" },
 ];
 
+const SYSTEM_UPDATES = [
+  {
+    version: "Latest Release",
+    date: "Apr 16, 2026",
+    items: [
+      "Members panel now shows who is currently online.",
+      "Activity history tracks joins, leaves, and task actions.",
+      "Board owners can share protected and open invite links.",
+      "Signed-in users can now log out and return to the home page.",
+    ],
+  },
+];
+
 type ModalState =
   | { open: false }
   | { open: true; boardId: string; mode: "setup" | "verify" };
@@ -93,7 +106,7 @@ export default function Home() {
   const [showAuth, setShowAuth] = useState(false);
   const [showMyBoards, setShowMyBoards] = useState(false);
   const { theme, toggle: toggleTheme } = useTheme();
-  const { user, token: authToken, loading: authLoading } = useAuth();
+  const { user, token: authToken, loading: authLoading, logout } = useAuth();
 
   useEffect(() => {
     setRecentBoards(getRecentBoards());
@@ -299,6 +312,28 @@ export default function Home() {
     setRecentBoards(getRecentBoards());
   }
 
+  function handleLogout() {
+    logout();
+    if (boardId) {
+      try { sessionStorage.removeItem(`board_auth_${boardId}`); } catch { /* ignore */ }
+    }
+    try { localStorage.removeItem("taskboard_username"); } catch { /* ignore */ }
+    try { window.history.pushState({}, "", window.location.pathname); } catch { /* ignore */ }
+
+    setJoined(false);
+    setBoardId("");
+    setInputValue("");
+    setUserName("");
+    setOwnerName(null);
+    setOwnerToken(null);
+    setBypassToken(null);
+    setIsOwner(false);
+    setShowAuth(false);
+    setShowMyBoards(false);
+    setModal({ open: false });
+    setModalError("");
+  }
+
   function handleRemoveRecent(e: React.MouseEvent, b: string) {
     e.stopPropagation();
     removeRecentBoard(b);
@@ -316,6 +351,7 @@ export default function Home() {
           bypassToken={bypassToken}
           isOwner={isOwner}
           onLeave={handleLeave}
+          onLogout={user ? handleLogout : undefined}
           onShowMyBoards={user ? () => setShowMyBoards(true) : undefined}
         />
         {showMyBoards && (
@@ -340,20 +376,35 @@ export default function Home() {
         {/* Auth button */}
         {!authLoading && (
           user ? (
-            <button
-              onClick={() => setShowMyBoards(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer"
-              style={{
-                background: "var(--bg-card)",
-                border: "1px solid var(--border)",
-                color: "var(--accent-indigo)",
-                boxShadow: "var(--shadow)",
-              }}
-              title="My Boards"
-            >
-              <KanbanIcon size={13} />
-              @{user.username}
-            </button>
+            <>
+              <button
+                onClick={() => setShowMyBoards(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer"
+                style={{
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border)",
+                  color: "var(--accent-indigo)",
+                  boxShadow: "var(--shadow)",
+                }}
+                title="My Boards"
+              >
+                <KanbanIcon size={13} />
+                @{user.username}
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer"
+                style={{
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border)",
+                  color: "var(--accent-red)",
+                  boxShadow: "var(--shadow)",
+                }}
+                title="Log Out"
+              >
+                Log Out
+              </button>
+            </>
           ) : (
             <button
               onClick={() => setShowAuth(true)}
@@ -505,6 +556,56 @@ export default function Home() {
               <div className="text-xs" style={{ color: "var(--text-muted)" }}>{desc}</div>
             </div>
           ))}
+        </div>
+
+        {/* Latest updates */}
+        <div
+          className="glass rounded-2xl p-4 mt-4 animate-fade-in"
+          style={{ boxShadow: "var(--shadow)", animationDelay: "0.12s" }}
+        >
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div>
+              <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                Latest System Updates
+              </h2>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                This section shows the newest features included in the latest repo push.
+              </p>
+            </div>
+            <div
+              className="px-2 py-1 rounded-lg text-[10px] font-semibold shrink-0"
+              style={{ background: "rgba(99,102,241,0.12)", color: "var(--accent-indigo)" }}
+            >
+              Live Notes
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {SYSTEM_UPDATES.map((update) => (
+              <div
+                key={`${update.version}-${update.date}`}
+                className="rounded-xl p-3"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                    {update.version}
+                  </span>
+                  <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                    {update.date}
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-1.5">
+                  {update.items.map((item) => (
+                    <li key={item} className="text-xs flex items-start gap-2" style={{ color: "var(--text-secondary)" }}>
+                      <span style={{ color: "var(--accent-indigo)" }}>•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Credits link */}

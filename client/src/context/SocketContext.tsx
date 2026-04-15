@@ -26,11 +26,20 @@ export function SocketProvider({
 
   useEffect(() => {
     const socket = socketRef.current!;
+
+    const joinRoom = () => {
+      socket.emit("board:join", { boardId, userName });
+    };
+
+    socket.on("connect", joinRoom);
     socket.connect();
-    socket.emit("board:join", { boardId, userName });
+
+    if (socket.connected) {
+      joinRoom();
+    }
 
     return () => {
-      socket.emit("board:leave", boardId);
+      socket.off("connect", joinRoom);
       socket.disconnect();
     };
   }, [boardId, userName]);

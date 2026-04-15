@@ -18,6 +18,7 @@ export async function createTask(body: {
   boardId: string;
   priority?: string;
   dueDate?: string | null;
+  userName?: string;
 }) {
   const res = await fetch(`${API_URL}/api/tasks`, {
     method: "POST",
@@ -29,7 +30,7 @@ export async function createTask(body: {
 
 export async function updateTask(
   id: string,
-  body: { title?: string; description?: string; priority?: string; dueDate?: string | null }
+  body: { title?: string; description?: string; priority?: string; dueDate?: string | null; userName?: string }
 ) {
   const res = await fetch(`${API_URL}/api/tasks/${encodeURIComponent(id)}`, {
     method: "PUT",
@@ -39,7 +40,7 @@ export async function updateTask(
   return handleResponse(res);
 }
 
-export async function moveTask(id: string, body: { column: string; order: number }) {
+export async function moveTask(id: string, body: { column: string; order: number; userName?: string }) {
   const res = await fetch(`${API_URL}/api/tasks/${encodeURIComponent(id)}/move`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -48,9 +49,11 @@ export async function moveTask(id: string, body: { column: string; order: number
   return handleResponse(res);
 }
 
-export async function deleteTask(id: string) {
+export async function deleteTask(id: string, userName?: string) {
   const res = await fetch(`${API_URL}/api/tasks/${encodeURIComponent(id)}`, {
     method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: userName ? JSON.stringify({ userName }) : undefined,
   });
   return handleResponse(res);
 }

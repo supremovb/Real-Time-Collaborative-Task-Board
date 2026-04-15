@@ -5,7 +5,7 @@ import { createTask } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
 import { PRIORITY_CONFIG } from "@/types";
 
-export default function AddTaskForm({ boardId }: { boardId: string }) {
+export default function AddTaskForm({ boardId, userName }: { boardId: string; userName: string }) {
   const [title, setTitle]       = useState("");
   const [priority, setPriority] = useState("medium");
   const [loading, setLoading]   = useState(false);
@@ -16,7 +16,7 @@ export default function AddTaskForm({ boardId }: { boardId: string }) {
     if (!title.trim() || loading) return;
     setLoading(true);
     try {
-      await createTask({ title: title.trim(), boardId, priority, column: "todo" });
+      await createTask({ title: title.trim(), boardId, priority, column: "todo", userName });
       toast(`"${title.trim()}" added to To Do`, "success");
       setTitle("");
     } catch {

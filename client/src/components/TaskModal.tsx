@@ -28,10 +28,12 @@ function isOverdue(dateStr: string | null | undefined) {
 
 export default function TaskModal({
   task,
+  userName,
   onClose,
   onSaved,
 }: {
   task: Task;
+  userName: string;
   onClose: () => void;
   onSaved: (updated: Task) => void;
 }) {
@@ -62,6 +64,7 @@ export default function TaskModal({
         description: description.trim(),
         priority,
         dueDate: dueDate || null,
+        userName,
       });
       toast("Task updated successfully", "success");
       onSaved(updated);

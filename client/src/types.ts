@@ -30,6 +30,25 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+export type ActivityAction =
+  | "task:created"
+  | "task:updated"
+  | "task:deleted"
+  | "task:moved"
+  | "member:joined"
+  | "member:left";
+
+export interface ActivityEntry {
+  id: string;
+  action: ActivityAction;
+  userName: string;
+  taskTitle?: string;
+  fromColumn?: string;
+  toColumn?: string;
+  detail?: string;
+  timestamp: number;
+}
+
 export const COLUMNS: ColumnDef[] = [
   { id: "todo",        title: "To Do",      color: "#6366f1", gradient: "linear-gradient(135deg,#6366f1,#8b5cf6)" },
   { id: "in-progress", title: "In Progress", color: "#f59e0b", gradient: "linear-gradient(135deg,#f59e0b,#ef4444)" },

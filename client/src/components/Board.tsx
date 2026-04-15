@@ -22,15 +22,17 @@ import TaskCard from "./TaskCard";
 import AddTaskForm from "./AddTaskForm";
 import TaskModal from "./TaskModal";
 import Chat from "./Chat";
+import ActivityPanel from "./ActivityPanel";
+import MembersPanel from "./MembersPanel";
 import BoardPasswordModal from "./BoardPasswordModal";
 import { useSocket } from "@/context/SocketContext";
 import { useToast } from "@/context/ToastContext";
 import { fetchTasks, getBoardStatus, moveTask, setupBoardPassword, removeBoardPassword } from "@/lib/api";
-import { Task, ChatMessage, COLUMNS, ColumnId, Priority } from "@/types";
+import { Task, ChatMessage, ActivityEntry, COLUMNS, ColumnId, Priority } from "@/types";
 import {
   KanbanIcon, UsersIcon, SearchIcon, XIcon,
   ArrowLeftIcon, FilterIcon, SortIcon, CopyIcon, SunIcon, MoonIcon,
-  MessageIcon, LockIcon, UnlockIcon,
+  MessageIcon, LockIcon, UnlockIcon, HistoryIcon,
 } from "./Icons";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -43,7 +45,7 @@ const SORT_LABELS: Record<SortMode, string> = {
 };
 const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
-export default function Board({ boardId, userName, ownerName, ownerToken, bypassToken, isOwner, onLeave, onShowMyBoards }: {
+export default function Board({ boardId, userName, ownerName, ownerToken, bypassToken, isOwner, onLeave, onLogout, onShowMyBoards }: {
   boardId: string;
   userName: string;
   ownerName: string | null;
@@ -51,6 +53,7 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
   bypassToken?: string | null;
   isOwner: boolean;
   onLeave: () => void;
+  onLogout?: () => void;
   onShowMyBoards?: () => void;
 }) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -71,6 +74,9 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
   const [sortOpen, setSortOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const socket = useSocket();
   const { toast } = useToast();
   const { theme, toggle: toggleTheme } = useTheme();
@@ -123,6 +129,12 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
     const onBoardUpdated = (all: Task[]) => setTasks(all);
 
     const onChatHistory = (msgs: ChatMessage[]) => setChatMessages(msgs);
+    const onActivityHistory = (entries: ActivityEntry[]) => {
+      setActivityLog(entries.filter((entry, index, arr) => arr.findIndex((item) => item.id === entry.id) === index));
+    };
+    const onActivityLog = (entry: ActivityEntry) => {
+      setActivityLog((prev) => prev.some((item) => item.id === entry.id) ? prev : [...prev, entry]);
+    };
     const onChatMessage = (msg: ChatMessage) => {
       setChatMessages((prev) => [...prev, msg]);
       // Show toast for other users' join/leave events
@@ -146,8 +158,10 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
     socket.on("task:updated",   onTaskUpdated);
     socket.on("task:deleted",   onTaskDeleted);
     socket.on("board:updated",  onBoardUpdated);
-    socket.on("chat:history",   onChatHistory);
-    socket.on("chat:message",   onChatMessage);
+    socket.on("chat:history",    onChatHistory);
+    socket.on("chat:message",    onChatMessage);
+    socket.on("activity:history", onActivityHistory);
+    socket.on("activity:log",     onActivityLog);
 
     if (socket.connected) setConnected(true);
 
@@ -160,8 +174,10 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
       socket.off("task:updated",   onTaskUpdated);
       socket.off("task:deleted",   onTaskDeleted);
       socket.off("board:updated",  onBoardUpdated);
-      socket.off("chat:history",   onChatHistory);
-      socket.off("chat:message",   onChatMessage);
+      socket.off("chat:history",    onChatHistory);
+      socket.off("chat:message",    onChatMessage);
+      socket.off("activity:history", onActivityHistory);
+      socket.off("activity:log",     onActivityLog);
     };
   }, [socket, userName, toast]);
 
@@ -265,7 +281,7 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
     }
 
     try {
-      await moveTask(activeId, { column: targetColumn, order: newOrder });
+      await moveTask(activeId, { column: targetColumn, order: newOrder, userName });
     } catch {
       toast("Failed to move task", "error");
       loadTasks();
@@ -462,6 +478,38 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
             )}
           </button>
 
+          {/* Members panel button */}
+          <button
+            onClick={() => { setMembersOpen((v) => !v); if (activityOpen) setActivityOpen(false); }}
+            title="Board members"
+            className="relative flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+            style={{
+              background: membersOpen ? "rgba(99,102,241,0.12)" : "var(--bg-card)",
+              color: membersOpen ? "var(--accent-indigo)" : "var(--text-secondary)",
+              border: `1px solid ${membersOpen ? "rgba(99,102,241,0.4)" : "var(--border)"}`,
+              transition: "all 0.2s",
+            }}
+          >
+            <UsersIcon size={13} />
+            <span className="hidden sm:inline">Members</span>
+          </button>
+
+          {/* Activity log button */}
+          <button
+            onClick={() => { setActivityOpen((v) => { if (!v && membersOpen) setMembersOpen(false); return !v; }); }}
+            title="Board activity"
+            className="relative flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+            style={{
+              background: activityOpen ? "rgba(99,102,241,0.12)" : "var(--bg-card)",
+              color: activityOpen ? "var(--accent-indigo)" : "var(--text-secondary)",
+              border: `1px solid ${activityOpen ? "rgba(99,102,241,0.4)" : "var(--border)"}`,
+              transition: "all 0.2s",
+            }}
+          >
+            <HistoryIcon size={13} />
+            <span className="hidden sm:inline">Activity</span>
+          </button>
+
           {/* Owner password management */}
           {isOwner && (
             <button
@@ -527,6 +575,21 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
             >
               <KanbanIcon size={13} />
               <span className="hidden sm:inline">My Boards</span>
+            </button>
+          )}
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              title="Log Out"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer shrink-0"
+              style={{
+                background: "var(--bg-card)",
+                color: "var(--accent-red)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <span>Log Out</span>
             </button>
           )}
         </div>
@@ -615,7 +678,7 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
         </div>
 
         {/* Row 2: Add task form — full width */}
-        <AddTaskForm boardId={boardId} />
+        <AddTaskForm boardId={boardId} userName={userName} />
 
         {/* Row 3: Priority filter chips — horizontal scroll */}
         <div
@@ -703,6 +766,7 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
       {modalTask && (
         <TaskModal
           task={modalTask}
+          userName={userName}
           onClose={() => setModalTask(null)}
           onSaved={(updated) =>
             setTasks((prev) => prev.map((t) => (t._id === updated._id ? updated : t)))
@@ -755,6 +819,24 @@ export default function Board({ boardId, userName, ownerName, ownerToken, bypass
               setPwError(error instanceof Error ? error.message : "Failed to update board password");
             }
           }}
+        />
+      )}
+
+      {/* Members slide-over panel */}
+      {membersOpen && (
+        <MembersPanel
+          members={members}
+          userName={userName}
+          ownerName={ownerName ?? null}
+          onClose={() => setMembersOpen(false)}
+        />
+      )}
+
+      {/* Activity log slide-over panel */}
+      {activityOpen && (
+        <ActivityPanel
+          entries={activityLog}
+          onClose={() => setActivityOpen(false)}
         />
       )}
     </div>
