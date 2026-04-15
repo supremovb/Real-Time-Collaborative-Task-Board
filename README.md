@@ -1,6 +1,6 @@
-# TaskBoard — Real-Time Collaborative Kanban
+# TaskBoard ï¿½ Real-Time Collaborative Kanban
 
-A full-stack real-time collaborative task board built from scratch. Create boards, manage tasks across columns, invite collaborators via a shareable link, and watch changes sync live — no refresh needed.
+A full-stack real-time collaborative task board built from scratch. Create boards, manage tasks across columns, invite collaborators via a shareable link, and watch changes sync live ï¿½ no refresh needed.
 
 ![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)
@@ -12,16 +12,16 @@ A full-stack real-time collaborative task board built from scratch. Create board
 
 ## Features
 
-- **Real-time sync** — Task changes (create, edit, move, delete) broadcast instantly to every connected user via Socket.io
-- **Drag & drop** — Move tasks between Todo / In Progress / Done columns using @dnd-kit
-- **Board password protection** — Creators can lock a board; collaborators must verify before entering
-- **Live presence** — See how many users are currently on the board
-- **Dark / Light mode** — System-aware theme with manual toggle, persisted to localStorage
-- **Shareable links** — Share a `?board=<id>` URL; recipients are prompted for the password if one is set
-- **Task details** — Priority levels (low / medium / high), due dates, and descriptions
-- **Filter & sort** — Filter by priority or column; sort by due date, priority, or creation time
-- **Progress bar** — Visual completion percentage per board
-- **Persistent refresh** — Board ID is stored in the URL so refreshing keeps you on the same board
+- **Real-time sync** ï¿½ Task changes (create, edit, move, delete) broadcast instantly to every connected user via Socket.io
+- **Drag & drop** ï¿½ Move tasks between Todo / In Progress / Done columns using @dnd-kit
+- **Board password protection** ï¿½ Creators can lock a board; collaborators must verify before entering
+- **Live presence** ï¿½ See how many users are currently on the board
+- **Dark / Light mode** ï¿½ System-aware theme with manual toggle, persisted to localStorage
+- **Shareable links** ï¿½ Share a `?board=<id>` URL; recipients are prompted for the password if one is set
+- **Task details** ï¿½ Priority levels (low / medium / high), due dates, and descriptions
+- **Filter & sort** ï¿½ Filter by priority or column; sort by due date, priority, or creation time
+- **Progress bar** ï¿½ Visual completion percentage per board
+- **Persistent refresh** ï¿½ Board ID is stored in the URL so refreshing keeps you on the same board
 
 ---
 
@@ -45,22 +45,22 @@ A full-stack real-time collaborative task board built from scratch. Create board
 ```
 real-time-collaborative-task-board/
 +-- client/                    # Next.js 15 frontend
-¦   +-- src/
-¦   ¦   +-- app/               # App Router pages, layout, global CSS, favicon
-¦   ¦   +-- components/        # Board, Column, TaskCard, Modals, Icons ...
-¦   ¦   +-- context/           # ThemeContext
-¦   ¦   +-- lib/               # api.ts (REST + Socket helpers)
-¦   +-- public/                # Static assets
-¦   +-- .env.local.example
-¦   +-- vercel.json
-¦
+ï¿½   +-- src/
+ï¿½   ï¿½   +-- app/               # App Router pages, layout, global CSS, favicon
+ï¿½   ï¿½   +-- components/        # Board, Column, TaskCard, Modals, Icons ...
+ï¿½   ï¿½   +-- context/           # ThemeContext
+ï¿½   ï¿½   +-- lib/               # api.ts (REST + Socket helpers)
+ï¿½   +-- public/                # Static assets
+ï¿½   +-- .env.local.example
+ï¿½   +-- vercel.json
+ï¿½
 +-- server/                    # Express + Socket.io backend
     +-- src/
-    ¦   +-- models/            # Task.js, Board.js (Mongoose)
-    ¦   +-- routes/            # tasks.js, boards.js
-    ¦   +-- socket.js          # Socket.io event handlers
-    ¦   +-- db.js              # MongoDB connection
-    ¦   +-- index.js           # App entry point
+    ï¿½   +-- models/            # Task.js, Board.js (Mongoose)
+    ï¿½   +-- routes/            # tasks.js, boards.js
+    ï¿½   +-- socket.js          # Socket.io event handlers
+    ï¿½   +-- db.js              # MongoDB connection
+    ï¿½   +-- index.js           # App entry point
     +-- .env.example
     +-- railway.json
 ```
@@ -76,7 +76,7 @@ real-time-collaborative-task-board/
 ### 1. Clone
 
 ```bash
-git clone https://github.com/your-username/real-time-collaborative-task-board.git
+git clone https://github.com/supremovb/Real-Time-Collaborative-Task-Board.git
 cd real-time-collaborative-task-board
 ```
 
@@ -132,7 +132,7 @@ npm run dev    # http://localhost:3000
    ```
    NEXT_PUBLIC_API_URL = https://your-railway-app.up.railway.app
    ```
-4. Deploy — Vercel handles the Next.js build automatically.
+4. Deploy ï¿½ Vercel handles the Next.js build automatically.
 
 ### Backend ? Railway
 
@@ -156,7 +156,7 @@ npm run dev    # http://localhost:3000
 |---|---|
 | `MONGODB_URI` | MongoDB Atlas connection string |
 | `PORT` | Server port (default `4000`) |
-| `CLIENT_URL` | Allowed CORS origin — your Vercel URL. Comma-separated for multiple origins. |
+| `CLIENT_URL` | Allowed CORS origin ï¿½ your Vercel URL. Comma-separated for multiple origins. |
 
 ### `client/.env.local`
 
@@ -179,4 +179,4 @@ npm run dev    # http://localhost:3000
 
 ## License
 
-MIT © 2026 [Primo Velasquez](https://github.com/your-username)
+MIT Â© 2026 [Primo Velasquez](https://github.com/supremovb)
