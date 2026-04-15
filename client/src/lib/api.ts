@@ -60,7 +60,7 @@ export async function getBoardStatus(boardId: string): Promise<{ protected: bool
   return handleResponse(res);
 }
 
-export async function setupBoardPassword(boardId: string, password: string, ownerToken?: string | null): Promise<void> {
+export async function setupBoardPassword(boardId: string, password: string, ownerToken?: string | null): Promise<{ bypassToken?: string }> {
   const res = await fetch(`${API_URL}/api/boards/${encodeURIComponent(boardId)}/setup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -78,6 +78,15 @@ export async function verifyBoardPassword(boardId: string, password: string): Pr
   return handleResponse(res);
 }
 
+export async function verifyBoardBypass(boardId: string, bypassToken: string): Promise<{ valid: boolean }> {
+  const res = await fetch(`${API_URL}/api/boards/${encodeURIComponent(boardId)}/verify-bypass`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bypassToken }),
+  });
+  return handleResponse(res);
+}
+
 export async function removeBoardPassword(boardId: string, password: string, ownerToken?: string | null): Promise<void> {
   const res = await fetch(`${API_URL}/api/boards/${encodeURIComponent(boardId)}/remove-password`, {
     method: "POST",
@@ -91,7 +100,7 @@ export async function claimBoardOwner(
   boardId: string,
   ownerName: string,
   ownerToken?: string | null
-): Promise<{ ownerName: string; claimed: boolean; isOwner: boolean; ownerToken?: string }> {
+): Promise<{ ownerName: string; claimed: boolean; isOwner: boolean; ownerToken?: string; bypassToken?: string | null }> {
   const res = await fetch(`${API_URL}/api/boards/${encodeURIComponent(boardId)}/claim-owner`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -23,6 +23,10 @@ const boardSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    bypassToken: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );

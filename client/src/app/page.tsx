@@ -10,7 +10,7 @@ import CreditsModal from "@/components/CreditsModal";
 import AuthModal from "@/components/AuthModal";
 import MyBoards from "@/components/MyBoards";
 import { useAuth } from "@/context/AuthContext";
-import { getBoardStatus, setupBoardPassword, verifyBoardPassword, claimBoardOwner, addMyBoard } from "@/lib/api";
+import { getBoardStatus, setupBoardPassword, verifyBoardPassword, verifyBoardBypass, claimBoardOwner, addMyBoard } from "@/lib/api";
 
 const MAX_RECENT = 5;
 
@@ -44,6 +44,19 @@ function removeOwnerToken(id: string) {
   catch { /* ignore */ }
 }
 
+function getBypassToken(id: string): string | null {
+  try { return localStorage.getItem(`board_bypass_${id}`); }
+  catch { return null; }
+}
+function saveBypassToken(id: string, token: string) {
+  try { localStorage.setItem(`board_bypass_${id}`, token); }
+  catch { /* ignore */ }
+}
+function removeBypassToken(id: string) {
+  try { localStorage.removeItem(`board_bypass_${id}`); }
+  catch { /* ignore */ }
+}
+
 function isBoardUnlocked(id: string): boolean {
   try { return sessionStorage.getItem(`board_auth_${id}`) === "1"; }
   catch { return false; }
@@ -70,6 +83,7 @@ export default function Home() {
   const [nameError, setNameError] = useState(false);
   const [ownerName, setOwnerName] = useState<string | null>(null);
   const [ownerToken, setOwnerToken] = useState<string | null>(null);
+  const [bypassToken, setBypassToken] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [joined, setJoined] = useState(false);
   const [recentBoards, setRecentBoards] = useState<string[]>([]);
@@ -125,11 +139,23 @@ export default function Home() {
         setOwnerToken(null);
       }
 
+      // Persist bypass token for the owner
+      if (result.isOwner && result.bypassToken) {
+        saveBypassToken(id, result.bypassToken);
+        setBypassToken(result.bypassToken);
+      } else if (result.isOwner) {
+        const stored = getBypassToken(id);
+        setBypassToken(stored);
+      } else {
+        setBypassToken(null);
+      }
+
       return result;
     } catch {
       setOwnerName(null);
       setIsOwner(false);
       setOwnerToken(null);
+      setBypassToken(null);
       return null;
     }
   }
@@ -180,7 +206,20 @@ export default function Home() {
           setBoardUnlocked(sanitized);
           await claimOwnerAndJoin(sanitized, name, true);
         } else {
-          // Not the owner — require password
+          // Not the owner — check for bypass invite token in URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const inviteToken = urlParams.get("invite");
+          if (inviteToken) {
+            try {
+              const { valid } = await verifyBoardBypass(sanitized, inviteToken);
+              if (valid) {
+                setBoardUnlocked(sanitized);
+                await claimOwnerAndJoin(sanitized, name, false);
+                return;
+              }
+            } catch { /* fall through to password modal */ }
+          }
+          // Require password
           setBoardId(sanitized);
           setModalError("");
           setModal({ open: true, boardId: sanitized, mode: "verify" });
@@ -209,7 +248,11 @@ export default function Home() {
     setModalError("");
 
     if (mode === "setup") {
-      await setupBoardPassword(id, password, ownerToken);
+      const result = await setupBoardPassword(id, password, ownerToken);
+      if (result?.bypassToken) {
+        saveBypassToken(id, result.bypassToken);
+        setBypassToken(result.bypassToken);
+      }
       setBoardUnlocked(id);
       setModal({ open: false });
       await claimOwnerAndJoin(id, userName.trim());
@@ -251,6 +294,7 @@ export default function Home() {
     setInputValue("");
     setOwnerName(null);
     setOwnerToken(null);
+    setBypassToken(null);
     setIsOwner(false);
     setRecentBoards(getRecentBoards());
   }
@@ -269,6 +313,7 @@ export default function Home() {
           userName={userName}
           ownerName={ownerName}
           ownerToken={ownerToken}
+          bypassToken={bypassToken}
           isOwner={isOwner}
           onLeave={handleLeave}
           onShowMyBoards={user ? () => setShowMyBoards(true) : undefined}

@@ -67,7 +67,7 @@ router.post("/:boardId/claim-owner", async (req, res) => {
     const board = await Board.findOne({ boardId });
     if (board && board.ownerName) {
       if (await hasOwnerAccess(board, ownerToken)) {
-        return res.json({ ownerName: board.ownerName, claimed: false, isOwner: true });
+        return res.json({ ownerName: board.ownerName, claimed: false, isOwner: true, bypassToken: board.bypassToken || null });
       }
 
       // One-time migration path for boards created before owner tokens existed.
@@ -130,14 +130,15 @@ router.post("/:boardId/setup", async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const bypassToken = crypto.randomBytes(20).toString("hex");
 
     await Board.findOneAndUpdate(
       { boardId },
-      { passwordHash },
+      { passwordHash, bypassToken },
       { new: true }
     );
 
-    res.json({ success: true });
+    res.json({ success: true, bypassToken });
   } catch {
     res.status(500).json({ error: "Failed to set board password" });
   }
@@ -191,10 +192,36 @@ router.post("/:boardId/remove-password", verifyLimiter, async (req, res) => {
     const valid = await bcrypt.compare(password, board.passwordHash);
     if (!valid) return res.status(403).json({ error: "Incorrect password" });
 
-    await Board.findOneAndUpdate({ boardId }, { passwordHash: null });
+    await Board.findOneAndUpdate({ boardId }, { passwordHash: null, bypassToken: null });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to remove password" });
+  }
+});
+
+// POST /api/boards/:boardId/verify-bypass
+// Validate an invite bypass token (allows entry without the password)
+router.post("/:boardId/verify-bypass", async (req, res) => {
+  try {
+    const boardId = sanitizeBoardId(req.params.boardId);
+    if (!boardId) return res.status(400).json({ error: "Invalid board ID" });
+
+    const { bypassToken } = req.body;
+    if (!bypassToken || typeof bypassToken !== "string") {
+      return res.status(400).json({ valid: false });
+    }
+
+    const board = await Board.findOne({ boardId });
+    if (!board || !board.bypassToken) return res.json({ valid: false });
+
+    // Timing-safe comparison
+    const valid = crypto.timingSafeEqual(
+      Buffer.from(bypassToken),
+      Buffer.from(board.bypassToken)
+    );
+    res.json({ valid });
+  } catch {
+    res.json({ valid: false });
   }
 });
 

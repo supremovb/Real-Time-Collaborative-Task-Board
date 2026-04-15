@@ -43,11 +43,12 @@ const SORT_LABELS: Record<SortMode, string> = {
 };
 const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
-export default function Board({ boardId, userName, ownerName, ownerToken, isOwner, onLeave, onShowMyBoards }: {
+export default function Board({ boardId, userName, ownerName, ownerToken, bypassToken, isOwner, onLeave, onShowMyBoards }: {
   boardId: string;
   userName: string;
   ownerName: string | null;
   ownerToken: string | null;
+  bypassToken?: string | null;
   isOwner: boolean;
   onLeave: () => void;
   onShowMyBoards?: () => void;
@@ -69,6 +70,7 @@ export default function Board({ boardId, userName, ownerName, ownerToken, isOwne
   const [sortMode, setSortMode] = useState<SortMode>("order");
   const [sortOpen, setSortOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const socket = useSocket();
   const { toast } = useToast();
   const { theme, toggle: toggleTheme } = useTheme();
@@ -123,14 +125,17 @@ export default function Board({ boardId, userName, ownerName, ownerToken, isOwne
     const onChatHistory = (msgs: ChatMessage[]) => setChatMessages(msgs);
     const onChatMessage = (msg: ChatMessage) => {
       setChatMessages((prev) => [...prev, msg]);
-      // Show unread badge when chat is closed; show join toast for other users
+      // Show toast for other users' join/leave events
       if (msg.type === "system" && msg.text && !msg.text.startsWith(userName)) {
         toast(msg.text, "info");
       }
-      setChatOpen((open) => {
-        if (!open) setUnreadCount((n) => n + 1);
-        return open;
-      });
+      // Only actual user messages count as "unread" — not join/leave system events
+      if (msg.type === "user") {
+        setChatOpen((open) => {
+          if (!open) setUnreadCount((n) => n + 1);
+          return open;
+        });
+      }
     };
 
     socket.on("connect",        onConnect);
@@ -273,8 +278,20 @@ export default function Board({ boardId, userName, ownerName, ownerToken, isOwne
       : boardId;
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
+      setShareOpen(false);
       toast("Board link copied!", "success");
       setTimeout(() => setCopied(false), 2000);
+    }).catch(() => toast("Could not copy link", "error"));
+  }
+
+  function handleCopyBypassLink() {
+    if (!bypassToken) return;
+    const text = typeof window !== "undefined"
+      ? `${window.location.origin}?board=${boardId}&invite=${bypassToken}`
+      : boardId;
+    navigator.clipboard.writeText(text).then(() => {
+      setShareOpen(false);
+      toast("Open invite link copied! Anyone with this link can join without a password.", "success");
     }).catch(() => toast("Could not copy link", "error"));
   }
 
@@ -342,21 +359,74 @@ export default function Board({ boardId, userName, ownerName, ownerToken, isOwne
 
         {/* Right: actions */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Share — icon-only on mobile */}
-          <button
-            onClick={handleCopyLink}
-            title="Copy board link"
-            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
-            style={{
-              background: copied ? "rgba(99,102,241,0.12)" : "var(--bg-card)",
-              color: copied ? "var(--accent-indigo)" : "var(--text-secondary)",
-              border: `1px solid ${copied ? "rgba(99,102,241,0.4)" : "var(--border)"}`,
-              transition: "all 0.2s",
-            }}
-          >
-            <CopyIcon size={13} />
-            <span className="hidden sm:inline">{copied ? "Copied!" : "Share"}</span>
-          </button>
+          {/* Share — dropdown for owner with bypass token, simple button otherwise */}
+          {isOwner && isProtected && bypassToken ? (
+            <div className="relative">
+              <button
+                onClick={() => setShareOpen((v) => !v)}
+                title="Share board"
+                className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+                style={{
+                  background: shareOpen ? "rgba(99,102,241,0.12)" : "var(--bg-card)",
+                  color: shareOpen ? "var(--accent-indigo)" : "var(--text-secondary)",
+                  border: `1px solid ${shareOpen ? "rgba(99,102,241,0.4)" : "var(--border)"}`,
+                  transition: "all 0.2s",
+                }}
+              >
+                <CopyIcon size={13} />
+                <span className="hidden sm:inline">Share</span>
+              </button>
+              {shareOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1.5 rounded-xl overflow-hidden z-50 min-w-[200px]"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "var(--shadow-lg, 0 8px 32px rgba(0,0,0,0.2))" }}
+                >
+                  <button
+                    onClick={handleCopyLink}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs cursor-pointer transition-colors hover:bg-indigo-500/10 text-left"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    <CopyIcon size={12} />
+                    <div>
+                      <div className="font-medium">Copy Link</div>
+                      <div className="text-xs opacity-60">Requires password to join</div>
+                    </div>
+                  </button>
+                  <div style={{ height: 1, background: "var(--border)" }} />
+                  <button
+                    onClick={handleCopyBypassLink}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs cursor-pointer transition-colors hover:bg-indigo-500/10 text-left"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    <UnlockIcon size={12} />
+                    <div>
+                      <div className="font-medium">Copy Open Link</div>
+                      <div className="text-xs opacity-60">Anyone with link joins instantly</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+              {/* Click-away to close */}
+              {shareOpen && (
+                <div className="fixed inset-0 z-40" onClick={() => setShareOpen(false)} />
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={handleCopyLink}
+              title="Copy board link"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+              style={{
+                background: copied ? "rgba(99,102,241,0.12)" : "var(--bg-card)",
+                color: copied ? "var(--accent-indigo)" : "var(--text-secondary)",
+                border: `1px solid ${copied ? "rgba(99,102,241,0.4)" : "var(--border)"}`,
+                transition: "all 0.2s",
+              }}
+            >
+              <CopyIcon size={13} />
+              <span className="hidden sm:inline">{copied ? "Copied!" : "Share"}</span>
+            </button>
+          )}
 
           {/* Online users — icon-only on mobile */}
           <div
