@@ -72,7 +72,7 @@ export default function TaskCard({
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="group animate-fade-in">
+    <div ref={setNodeRef} style={{ ...style, touchAction: "none" }} className="group animate-fade-in">
       <div
         className="rounded-xl"
         style={{
@@ -89,13 +89,13 @@ export default function TaskCard({
       >
         {/* Drag handle + title row */}
         <div className="flex items-start gap-1 px-3 pt-3 pb-1">
-          {/* Drag handle */}
+          {/* Drag handle — always visible on mobile, subtle on desktop */}
           <div
             {...attributes}
             {...listeners}
             data-action
-            className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-50 transition-opacity"
-            style={{ cursor: "grab", color: "var(--text-muted)", touchAction: "none" }}
+            className="mt-0.5 shrink-0 opacity-40 group-hover:opacity-70 transition-opacity"
+            style={{ cursor: "grab", color: "var(--text-muted)", touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
             title="Drag to reorder"
           >
             <GripIcon size={14} />
