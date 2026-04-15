@@ -105,7 +105,7 @@ function _leaveBoard(socket, boardId, io) {
 
   if (roomUsers.get(boardId).size === 0) {
     roomUsers.delete(boardId);
-    chatHistory.delete(boardId); // clear chat when board is empty
+    // Keep chatHistory so messages survive refreshes / rejoins
   } else {
     const leaveMsg = {
       id: `sys-${Date.now()}-${socket.id}`,
