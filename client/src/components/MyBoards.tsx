@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getMyBoards, removeMyBoard, UserBoard } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { KanbanIcon, XIcon, TrashIcon, LockIcon, ArrowLeftIcon } from "./Icons";
+import { KanbanIcon, XIcon, TrashIcon, LockIcon, ArrowLeftIcon, PlusIcon } from "./Icons";
 
 export default function MyBoards({
   currentBoardId,
@@ -18,6 +18,8 @@ export default function MyBoards({
   const [boards, setBoards] = useState<UserBoard[]>([]);
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [newBoardId, setNewBoardId] = useState("");
+  const [createError, setCreateError] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -38,6 +40,19 @@ export default function MyBoards({
     } finally {
       setRemoving(null);
     }
+  }
+
+  function handleCreateBoard(e?: React.FormEvent) {
+    e?.preventDefault();
+    const sanitized = newBoardId.trim().replace(/[^a-zA-Z0-9-_]/g, "").slice(0, 50);
+    if (!sanitized) {
+      setCreateError("Enter a board name using letters, numbers, - or _.");
+      return;
+    }
+    setCreateError("");
+    setNewBoardId("");
+    onOpen(sanitized);
+    onClose();
   }
 
   return (
@@ -78,6 +93,42 @@ export default function MyBoards({
           </button>
         </div>
 
+        {/* Create new board */}
+        <div
+          className="px-4 py-3 shrink-0"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          <form onSubmit={handleCreateBoard} className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <input
+                value={newBoardId}
+                onChange={(e) => { setNewBoardId(e.target.value); if (createError) setCreateError(""); }}
+                placeholder="Create a new board name"
+                maxLength={50}
+                className="flex-1 px-3 py-2 rounded-xl outline-none text-sm"
+                style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+              />
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer shrink-0"
+                style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "#fff" }}
+              >
+                <PlusIcon size={12} />
+                <span>Create</span>
+              </button>
+            </div>
+            {createError ? (
+              <p className="text-[11px]" style={{ color: "var(--accent-red)" }}>
+                {createError}
+              </p>
+            ) : (
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                Create and open another board instantly from here.
+              </p>
+            )}
+          </form>
+        </div>
+
         {/* Board list */}
         <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
           {loading && (
@@ -99,7 +150,7 @@ export default function MyBoards({
               </div>
               <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>No boards yet</p>
               <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
-                Open a board and it will appear here automatically.
+                Create a board above or open one and it will appear here automatically.
               </p>
             </div>
           )}
@@ -113,7 +164,7 @@ export default function MyBoards({
                 tabIndex={0}
                 onClick={() => { onOpen(b.boardId); onClose(); }}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { onOpen(b.boardId); onClose(); } }}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left cursor-pointer transition-all"
+                className="group w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left cursor-pointer transition-all"
                 style={{
                   background: isCurrent ? "rgba(99,102,241,0.12)" : "var(--bg-secondary)",
                   border: `1px solid ${isCurrent ? "rgba(99,102,241,0.4)" : "var(--border)"}`,
