@@ -87,8 +87,10 @@ export default function Home() {
     const sharedBoard = params.get("board");
     if (sharedBoard) {
       setInputValue(sharedBoard);
-      // Pre-fill only — auto-joining here causes React hydration mismatch (#418)
-      // because SSR renders the landing page while the client would switch to Board view.
+      if (savedName.trim()) {
+        // Defer past hydration so React doesn't see a server/client mismatch (#418)
+        setTimeout(() => void handleJoin(sharedBoard, savedName), 0);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
