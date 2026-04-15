@@ -1,10 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { REPO_UPDATES } from "@/lib/repoUpdates";
+import { useEffect, useState } from "react";
+import { FALLBACK_REPO_UPDATES, RepoUpdateEntry } from "@/lib/repoUpdates";
 import { HistoryIcon, ArrowLeftIcon, KanbanIcon } from "@/components/Icons";
 
 export default function UpdatesPage() {
+  const [updates, setUpdates] = useState<RepoUpdateEntry[]>(FALLBACK_REPO_UPDATES);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/updates", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data?.updates) && data.updates.length > 0) {
+          setUpdates(data.updates);
+        }
+      })
+      .catch(() => {
+        setUpdates(FALLBACK_REPO_UPDATES);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div className="min-h-screen p-4 sm:p-6" style={{ background: "var(--bg-primary)" }}>
       <div className="max-w-4xl mx-auto">
@@ -14,7 +32,7 @@ export default function UpdatesPage() {
               System Updates Timeline
             </h1>
             <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-              A full timeline of the recent updates pushed to the repository.
+              This page now reads the latest repository history automatically after new pushes.
             </p>
           </div>
           <Link
@@ -27,8 +45,12 @@ export default function UpdatesPage() {
           </Link>
         </div>
 
+        <div className="mb-4 text-xs" style={{ color: "var(--text-muted)" }}>
+          {loading ? "Loading the newest repo updates..." : `Showing ${updates.length} recent repository updates.`}
+        </div>
+
         <div className="flex flex-col gap-4">
-          {REPO_UPDATES.map((entry) => (
+          {updates.map((entry) => (
             <div
               key={entry.id}
               className="rounded-2xl p-4 sm:p-5"
@@ -58,12 +80,26 @@ export default function UpdatesPage() {
 
               <ul className="flex flex-col gap-2 ml-1">
                 {entry.details.map((item) => (
-                  <li key={item} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  <li key={`${entry.id}-${item}`} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
                     <span style={{ color: "var(--accent-indigo)" }}>•</span>
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
+
+              {entry.url && (
+                <div className="mt-3">
+                  <a
+                    href={entry.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-semibold"
+                    style={{ color: "var(--accent-indigo)" }}
+                  >
+                    View commit on GitHub →
+                  </a>
+                </div>
+              )}
             </div>
           ))}
         </div>

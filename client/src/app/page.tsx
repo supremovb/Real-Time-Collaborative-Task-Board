@@ -12,7 +12,7 @@ import AuthModal from "@/components/AuthModal";
 import MyBoards from "@/components/MyBoards";
 import { useAuth } from "@/context/AuthContext";
 import { getBoardStatus, setupBoardPassword, verifyBoardPassword, verifyBoardBypass, claimBoardOwner, addMyBoard } from "@/lib/api";
-import { REPO_UPDATES } from "@/lib/repoUpdates";
+import { FALLBACK_REPO_UPDATES, RepoUpdateEntry } from "@/lib/repoUpdates";
 
 const MAX_RECENT = 5;
 
@@ -95,6 +95,7 @@ export default function Home() {
   const [showCredits, setShowCredits] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [showMyBoards, setShowMyBoards] = useState(false);
+  const [repoUpdatesPreview, setRepoUpdatesPreview] = useState<RepoUpdateEntry[]>(FALLBACK_REPO_UPDATES.slice(0, 3));
   const { theme, toggle: toggleTheme } = useTheme();
   const { user, token: authToken, loading: authLoading, logout } = useAuth();
 
@@ -124,6 +125,19 @@ export default function Home() {
       setUserName((prev) => prev || user.username);
     }
   }, [authLoading, user]);
+
+  useEffect(() => {
+    fetch("/api/updates", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data?.updates) && data.updates.length > 0) {
+          setRepoUpdatesPreview(data.updates.slice(0, 3));
+        }
+      })
+      .catch(() => {
+        setRepoUpdatesPreview(FALLBACK_REPO_UPDATES.slice(0, 3));
+      });
+  }, []);
 
   async function syncOwnerState(id: string, name: string) {
     const existingOwnerToken = getOwnerToken(id);
@@ -585,7 +599,7 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-3">
-            {REPO_UPDATES.slice(0, 1).map((update) => (
+            {repoUpdatesPreview.map((update) => (
               <div
                 key={update.id}
                 className="rounded-xl p-3"
@@ -600,8 +614,8 @@ export default function Home() {
                   </span>
                 </div>
                 <ul className="flex flex-col gap-1.5">
-                  {update.details.map((item) => (
-                    <li key={item} className="text-xs flex items-start gap-2" style={{ color: "var(--text-secondary)" }}>
+                  {update.details.slice(0, 2).map((item) => (
+                    <li key={`${update.id}-${item}`} className="text-xs flex items-start gap-2" style={{ color: "var(--text-secondary)" }}>
                       <span style={{ color: "var(--accent-indigo)" }}>•</span>
                       <span>{item}</span>
                     </li>

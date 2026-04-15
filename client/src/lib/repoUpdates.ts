@@ -4,9 +4,24 @@ export interface RepoUpdateEntry {
   timestamp: string;
   summary: string;
   details: string[];
+  url?: string;
 }
 
-export const REPO_UPDATES: RepoUpdateEntry[] = [
+export function formatRepoTimestamp(value: string) {
+  try {
+    return new Date(value).toLocaleString(undefined, {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return value;
+  }
+}
+
+export const FALLBACK_REPO_UPDATES: RepoUpdateEntry[] = [
   {
     id: "5a1d1f3",
     version: "Release 5a1d1f3",
