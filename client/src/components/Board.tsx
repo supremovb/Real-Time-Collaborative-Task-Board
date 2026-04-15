@@ -8,11 +8,14 @@ import {
   DragOverlay,
   DragStartEvent,
   PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
 } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
+import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 
 import Column from "./Column";
 import TaskCard from "./TaskCard";
@@ -111,9 +114,21 @@ export default function Board({ boardId, onLeave }: { boardId: string; onLeave: 
     return () => document.removeEventListener("mousedown", handler);
   }, [sortOpen]);
 
-  // DnD sensors
+  // DnD sensors — PointerSensor for mouse, TouchSensor for mobile, KeyboardSensor for a11y
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor,   { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  // Custom collision: prefer pointer-within droppables, fall back to rect intersection
+  const collisionDetection = useCallback(
+    (args: Parameters<typeof pointerWithin>[0]) => {
+      const pointerCollisions = pointerWithin(args);
+      if (pointerCollisions.length > 0) return pointerCollisions;
+      return rectIntersection(args);
+    },
+    []
   );
 
   const q = search.trim().toLowerCase();
@@ -457,7 +472,7 @@ export default function Board({ boardId, onLeave }: { boardId: string; onLeave: 
       >
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
