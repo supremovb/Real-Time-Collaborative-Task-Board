@@ -107,9 +107,12 @@ export default function MyBoards({
           {!loading && boards.map((b) => {
             const isCurrent = b.boardId === currentBoardId;
             return (
-              <button
+              <div
                 key={b.boardId}
+                role="button"
+                tabIndex={0}
                 onClick={() => { onOpen(b.boardId); onClose(); }}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { onOpen(b.boardId); onClose(); } }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left cursor-pointer transition-all"
                 style={{
                   background: isCurrent ? "rgba(99,102,241,0.12)" : "var(--bg-secondary)",
@@ -188,7 +191,7 @@ export default function MyBoards({
                     <TrashIcon size={11} />
                   </button>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>

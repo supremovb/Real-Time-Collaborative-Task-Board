@@ -81,14 +81,14 @@ function setupSocket(io) {
       const history = await _loadHistory(sanitized);
       socket.emit("chat:history", history);
 
-      // Announce join (save to DB + broadcast)
+      // Announce join — broadcast live only, do NOT persist to DB
+      // (persisting causes duplicate join messages on every page refresh)
       const joinMsg = {
         id: `sys-${Date.now()}-${socket.id}`,
         type: "system",
         text: `${name} joined the board`,
         timestamp: Date.now(),
       };
-      await _saveMsg(sanitized, joinMsg);
       io.to(sanitized).emit("chat:message", joinMsg);
 
       console.log(`📋 ${name} (${socket.id}) joined board: ${sanitized} (${roomUsers.get(sanitized).size} users)`);
@@ -151,7 +151,7 @@ function _leaveBoard(socket, boardId, io) {
       text: `${name} left the board`,
       timestamp: Date.now(),
     };
-    _saveMsg(boardId, leaveMsg);
+    // Broadcast live only — do NOT persist leave messages to DB
     io.to(boardId).emit("chat:message", leaveMsg);
   }
 }

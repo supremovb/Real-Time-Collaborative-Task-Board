@@ -108,13 +108,6 @@ export default function Home() {
     }
   }, [authLoading, user]);
 
-  // When auth loads and user is logged in, prefer their username
-  useEffect(() => {
-    if (!authLoading && user) {
-      setUserName((prev) => prev || user.username);
-    }
-  }, [authLoading, user]);
-
   async function syncOwnerState(id: string, name: string) {
     const existingOwnerToken = getOwnerToken(id);
     try {
@@ -181,10 +174,17 @@ export default function Home() {
       setOwnerName(status.ownerName);
       setIsOwner(false);
       if (status.protected) {
-        // Board has a password — show verify modal
-        setBoardId(sanitized);
-        setModalError("");
-        setModal({ open: true, boardId: sanitized, mode: "verify" });
+        // Check ownership FIRST — board owner is never asked for a password
+        const ownerResult = await syncOwnerState(sanitized, name);
+        if (ownerResult?.isOwner) {
+          setBoardUnlocked(sanitized);
+          await claimOwnerAndJoin(sanitized, name, true);
+        } else {
+          // Not the owner — require password
+          setBoardId(sanitized);
+          setModalError("");
+          setModal({ open: true, boardId: sanitized, mode: "verify" });
+        }
       } else {
         const ownerResult = await syncOwnerState(sanitized, name);
         if (ownerResult?.isOwner) {
