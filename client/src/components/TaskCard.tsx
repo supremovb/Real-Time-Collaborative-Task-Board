@@ -74,12 +74,16 @@ export default function TaskCard({
   return (
     <div ref={setNodeRef} style={{ ...style, touchAction: "none" }} className="group animate-fade-in">
       <div
+        {...attributes}
+        {...listeners}
         className="rounded-xl"
         style={{
           background: "var(--bg-card)",
           border: "1px solid var(--border)",
           borderLeft: `3px solid ${pConfig.color}`,
-          cursor: "pointer",
+          cursor: isDragging ? "grabbing" : "grab",
+          userSelect: "none",
+          WebkitUserSelect: "none",
         }}
         onClick={(e) => {
           if (!(e.target as HTMLElement).closest("[data-action]")) {
@@ -87,16 +91,12 @@ export default function TaskCard({
           }
         }}
       >
-        {/* Drag handle + title row */}
+        {/* Title row */}
         <div className="flex items-start gap-1 px-3 pt-3 pb-1">
-          {/* Drag handle — always visible on mobile, subtle on desktop */}
+          {/* Grip indicator — visual only, drag works on whole card */}
           <div
-            {...attributes}
-            {...listeners}
-            data-action
-            className="mt-0.5 shrink-0 opacity-40 group-hover:opacity-70 transition-opacity"
-            style={{ cursor: "grab", color: "var(--text-muted)", touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
-            title="Drag to reorder"
+            className="mt-0.5 shrink-0 opacity-30 group-hover:opacity-60 transition-opacity pointer-events-none"
+            style={{ color: "var(--text-muted)" }}
           >
             <GripIcon size={14} />
           </div>
