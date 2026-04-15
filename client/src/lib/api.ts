@@ -99,3 +99,72 @@ export async function claimBoardOwner(
   });
   return handleResponse(res);
 }
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  boards?: string[];
+}
+
+export async function authRegister(
+  username: string,
+  password: string
+): Promise<{ user: AuthUser; token: string }> {
+  const res = await fetch(`${API_URL}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  return handleResponse(res);
+}
+
+export async function authLogin(
+  username: string,
+  password: string
+): Promise<{ user: AuthUser; token: string }> {
+  const res = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  return handleResponse(res);
+}
+
+export async function authMe(token: string): Promise<{ user: AuthUser }> {
+  const res = await fetch(`${API_URL}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+export interface UserBoard {
+  boardId: string;
+  ownerName: string | null;
+  isOwner: boolean;
+  protected: boolean;
+}
+
+export async function getMyBoards(token: string): Promise<{ boards: UserBoard[] }> {
+  const res = await fetch(`${API_URL}/api/auth/my-boards`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+export async function addMyBoard(token: string, boardId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/my-boards/${encodeURIComponent(boardId)}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+export async function removeMyBoard(token: string, boardId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/my-boards/${encodeURIComponent(boardId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}

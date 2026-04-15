@@ -43,13 +43,14 @@ const SORT_LABELS: Record<SortMode, string> = {
 };
 const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
-export default function Board({ boardId, userName, ownerName, ownerToken, isOwner, onLeave }: {
+export default function Board({ boardId, userName, ownerName, ownerToken, isOwner, onLeave, onShowMyBoards }: {
   boardId: string;
   userName: string;
   ownerName: string | null;
   ownerToken: string | null;
   isOwner: boolean;
   onLeave: () => void;
+  onShowMyBoards?: () => void;
 }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -441,6 +442,23 @@ export default function Board({ boardId, userName, ownerName, ownerToken, isOwne
             <ArrowLeftIcon size={12} />
             <span className="hidden sm:inline">Leave</span>
           </button>
+
+          {/* My Boards (only if logged in) */}
+          {onShowMyBoards && (
+            <button
+              onClick={onShowMyBoards}
+              title="My Boards"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer shrink-0"
+              style={{
+                background: "var(--bg-card)",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <KanbanIcon size={13} />
+              <span className="hidden sm:inline">My Boards</span>
+            </button>
+          )}
         </div>
       </header>
 

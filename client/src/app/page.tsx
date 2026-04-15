@@ -7,7 +7,10 @@ import { KanbanIcon, ZapIcon, TargetIcon, ShieldIcon, SunIcon, MoonIcon } from "
 import { useTheme } from "@/context/ThemeContext";
 import BoardPasswordModal from "@/components/BoardPasswordModal";
 import CreditsModal from "@/components/CreditsModal";
-import { getBoardStatus, setupBoardPassword, verifyBoardPassword, claimBoardOwner } from "@/lib/api";
+import AuthModal from "@/components/AuthModal";
+import MyBoards from "@/components/MyBoards";
+import { useAuth } from "@/context/AuthContext";
+import { getBoardStatus, setupBoardPassword, verifyBoardPassword, claimBoardOwner, addMyBoard } from "@/lib/api";
 
 const MAX_RECENT = 5;
 
@@ -73,7 +76,10 @@ export default function Home() {
   const [modal, setModal] = useState<ModalState>({ open: false });
   const [modalError, setModalError] = useState("");
   const [showCredits, setShowCredits] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [showMyBoards, setShowMyBoards] = useState(false);
   const { theme, toggle: toggleTheme } = useTheme();
+  const { user, token: authToken, loading: authLoading } = useAuth();
 
   useEffect(() => {
     setRecentBoards(getRecentBoards());
@@ -94,6 +100,20 @@ export default function Home() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When auth loads and user is logged in, prefer their username
+  useEffect(() => {
+    if (!authLoading && user) {
+      setUserName((prev) => prev || user.username);
+    }
+  }, [authLoading, user]);
+
+  // When auth loads and user is logged in, prefer their username
+  useEffect(() => {
+    if (!authLoading && user) {
+      setUserName((prev) => prev || user.username);
+    }
+  }, [authLoading, user]);
 
   async function syncOwnerState(id: string, name: string) {
     const existingOwnerToken = getOwnerToken(id);
@@ -126,6 +146,10 @@ export default function Home() {
       await syncOwnerState(id, name);
     }
     saveRecentBoard(id);
+    // Save to user's board list if logged in
+    if (authToken) {
+      addMyBoard(authToken, id).catch(() => {/* non-critical */});
+    }
     setBoardId(id);
     window.history.pushState({}, "", `?board=${encodeURIComponent(id)}`);
     setJoined(true);
@@ -247,7 +271,18 @@ export default function Home() {
           ownerToken={ownerToken}
           isOwner={isOwner}
           onLeave={handleLeave}
+          onShowMyBoards={user ? () => setShowMyBoards(true) : undefined}
         />
+        {showMyBoards && (
+          <MyBoards
+            currentBoardId={boardId}
+            onOpen={(id) => {
+              // Switch board without leaving — re-use handleJoin
+              void handleJoin(id, userName);
+            }}
+            onClose={() => setShowMyBoards(false)}
+          />
+        )}
       </SocketProvider>
     );
   }
@@ -255,20 +290,55 @@ export default function Home() {
   return (
     <>
     <div className="min-h-screen flex items-center justify-center p-4">
-      {/* Theme toggle — top right */}
-      <button
-        onClick={toggleTheme}
-        title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-        className="fixed top-4 right-4 w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer z-10"
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-          color: "var(--text-secondary)",
-          boxShadow: "var(--shadow)",
-        }}
-      >
-        {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
-      </button>
+      {/* Top-right controls: theme + auth */}
+      <div className="fixed top-4 right-4 flex items-center gap-2 z-10">
+        {/* Auth button */}
+        {!authLoading && (
+          user ? (
+            <button
+              onClick={() => setShowMyBoards(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                color: "var(--accent-indigo)",
+                boxShadow: "var(--shadow)",
+              }}
+              title="My Boards"
+            >
+              <KanbanIcon size={13} />
+              @{user.username}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowAuth(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer"
+              style={{
+                background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                color: "#fff",
+                border: "none",
+                boxShadow: "0 2px 12px rgba(99,102,241,0.4)",
+              }}
+            >
+              Sign In
+            </button>
+          )
+        )}
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            color: "var(--text-secondary)",
+            boxShadow: "var(--shadow)",
+          }}
+        >
+          {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+        </button>
+      </div>
       <div className="w-full" style={{ maxWidth: 480 }}>
 
         {/* Logo */}
@@ -422,6 +492,20 @@ export default function Home() {
 
     {/* Credits modal */}
     {showCredits && <CreditsModal onClose={() => setShowCredits(false)} />}
+
+    {/* Auth modal */}
+    {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+
+    {/* My Boards panel */}
+    {showMyBoards && (
+      <MyBoards
+        onOpen={(id) => {
+          setShowMyBoards(false);
+          void handleJoin(id, userName);
+        }}
+        onClose={() => setShowMyBoards(false)}
+      />
+    )}
   </>
   );
 }
