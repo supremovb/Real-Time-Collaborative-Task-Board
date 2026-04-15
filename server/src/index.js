@@ -13,6 +13,7 @@ const setupSocket = require("./socket");
 const taskRoutes = require("./routes/tasks");
 const boardRoutes = require("./routes/boards");
 const authRoutes = require("./routes/auth");
+const feedbackRoutes = require("./routes/feedback");
 
 const app = express();
 const server = http.createServer(app);
@@ -73,6 +74,7 @@ app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 app.use("/api/tasks", taskRoutes);
 app.use("/api/boards", boardRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/feedback", feedbackRoutes);
 
 // 404
 app.use((_req, res) => res.status(404).json({ error: "Not found" }));

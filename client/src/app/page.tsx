@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import Board from "@/components/Board";
 import { SocketProvider } from "@/context/SocketContext";
@@ -11,6 +12,7 @@ import AuthModal from "@/components/AuthModal";
 import MyBoards from "@/components/MyBoards";
 import { useAuth } from "@/context/AuthContext";
 import { getBoardStatus, setupBoardPassword, verifyBoardPassword, verifyBoardBypass, claimBoardOwner, addMyBoard } from "@/lib/api";
+import { REPO_UPDATES } from "@/lib/repoUpdates";
 
 const MAX_RECENT = 5;
 
@@ -72,18 +74,6 @@ const FEATURES = [
   { Icon: ShieldIcon, title: "Secured",     desc: "Rate-limited & sanitized" },
 ];
 
-const SYSTEM_UPDATES = [
-  {
-    version: "Latest Release",
-    date: "Apr 16, 2026",
-    items: [
-      "Members panel now shows who is currently online.",
-      "Activity history tracks joins, leaves, and task actions.",
-      "Board owners can share protected and open invite links.",
-      "Signed-in users can now log out and return to the home page.",
-    ],
-  },
-];
 
 type ModalState =
   | { open: false }
@@ -138,7 +128,7 @@ export default function Home() {
   async function syncOwnerState(id: string, name: string) {
     const existingOwnerToken = getOwnerToken(id);
     try {
-      const result = await claimBoardOwner(id, name, existingOwnerToken);
+      const result = await claimBoardOwner(id, name, existingOwnerToken, authToken);
       setOwnerName(result.ownerName);
       setIsOwner(result.isOwner);
 
@@ -372,7 +362,21 @@ export default function Home() {
     <>
     <div className="min-h-screen flex items-center justify-center p-4">
       {/* Top-right controls: theme + auth */}
-      <div className="fixed top-4 right-4 flex items-center gap-2 z-10">
+      <div className="fixed top-4 right-4 flex items-center gap-2 z-10 flex-wrap justify-end">
+        <Link
+          href="/updates"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", boxShadow: "var(--shadow)" }}
+        >
+          Updates
+        </Link>
+        <Link
+          href="/feedback"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", boxShadow: "var(--shadow)" }}
+        >
+          Feedback
+        </Link>
         {/* Auth button */}
         {!authLoading && (
           user ? (
@@ -581,28 +585,33 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-3">
-            {SYSTEM_UPDATES.map((update) => (
+            {REPO_UPDATES.slice(0, 1).map((update) => (
               <div
-                key={`${update.version}-${update.date}`}
+                key={update.id}
                 className="rounded-xl p-3"
                 style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
               >
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-                    {update.version}
+                    {update.summary}
                   </span>
                   <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                    {update.date}
+                    {update.timestamp}
                   </span>
                 </div>
                 <ul className="flex flex-col gap-1.5">
-                  {update.items.map((item) => (
+                  {update.details.map((item) => (
                     <li key={item} className="text-xs flex items-start gap-2" style={{ color: "var(--text-secondary)" }}>
                       <span style={{ color: "var(--accent-indigo)" }}>•</span>
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
+                <div className="mt-3">
+                  <Link href="/updates" className="text-xs font-semibold" style={{ color: "var(--accent-indigo)" }}>
+                    View full timeline →
+                  </Link>
+                </div>
               </div>
             ))}
           </div>

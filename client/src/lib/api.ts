@@ -102,12 +102,32 @@ export async function removeBoardPassword(boardId: string, password: string, own
 export async function claimBoardOwner(
   boardId: string,
   ownerName: string,
-  ownerToken?: string | null
+  ownerToken?: string | null,
+  authToken?: string | null
 ): Promise<{ ownerName: string; claimed: boolean; isOwner: boolean; ownerToken?: string; bypassToken?: string | null }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+
   const res = await fetch(`${API_URL}/api/boards/${encodeURIComponent(boardId)}/claim-owner`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ ownerName, ownerToken }),
+  });
+  return handleResponse(res);
+}
+
+export async function submitFeedback(body: {
+  type: "suggestion" | "bug";
+  title: string;
+  message: string;
+  name?: string;
+  email?: string;
+  isAuthenticated?: boolean;
+}) {
+  const res = await fetch(`${API_URL}/api/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
   return handleResponse(res);
 }

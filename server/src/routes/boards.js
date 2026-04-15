@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const Board = require("../models/Board");
+const User = require("../models/User");
 
 const router = express.Router();
 
@@ -22,6 +23,31 @@ function sanitizeOwnerToken(token) {
 async function hasOwnerAccess(board, ownerToken) {
   if (!board || !board.ownerTokenHash || !ownerToken) return false;
   return bcrypt.compare(ownerToken, board.ownerTokenHash);
+}
+
+async function getAuthenticatedUser(req) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith("Bearer ")) return null;
+
+  const sessionToken = auth.slice(7);
+  const parts = sessionToken.split(":");
+  if (parts.length !== 3) return null;
+
+  const [userId, token, hmac] = parts;
+  const secret = process.env.SESSION_SECRET || "taskboard-secret";
+  const expected = crypto.createHmac("sha256", secret)
+    .update(`${userId}:${token}`)
+    .digest("hex");
+
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(hmac, "hex"), Buffer.from(expected, "hex"))) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return User.findById(userId).select("username").lean();
 }
 
 // Strict rate limiter for password verify — 10 attempts per 15 min per IP
@@ -62,28 +88,59 @@ router.post("/:boardId/claim-owner", async (req, res) => {
     if (!ownerName || typeof ownerName !== "string" || !ownerName.trim()) {
       return res.status(400).json({ error: "Owner name is required" });
     }
-    const sanitizedName = ownerName.trim().slice(0, 60);
+
+    const authUser = await getAuthenticatedUser(req);
+    const sanitizedName = (authUser?.username || ownerName).trim().slice(0, 60);
 
     const board = await Board.findOne({ boardId });
     if (board && board.ownerName) {
-      if (await hasOwnerAccess(board, ownerToken)) {
-        return res.json({ ownerName: board.ownerName, claimed: false, isOwner: true, bypassToken: board.bypassToken || null });
-      }
+      const tokenOwner = await hasOwnerAccess(board, ownerToken);
+      const accountOwner = !!authUser && (
+        (board.ownerUserId && String(board.ownerUserId) === String(authUser._id)) ||
+        (!board.ownerUserId && authUser.username === board.ownerName)
+      );
 
-      // One-time migration path for boards created before owner tokens existed.
-      if (!board.ownerTokenHash && sanitizedName === board.ownerName) {
-        const issuedOwnerToken = crypto.randomBytes(24).toString("hex");
-        const ownerTokenHash = await bcrypt.hash(issuedOwnerToken, 10);
-        await Board.findOneAndUpdate({ boardId }, { ownerTokenHash });
+      if (tokenOwner || accountOwner) {
+        const updates = {};
+        let issuedOwnerToken;
+
+        if (!tokenOwner) {
+          issuedOwnerToken = crypto.randomBytes(24).toString("hex");
+          updates.ownerTokenHash = await bcrypt.hash(issuedOwnerToken, 10);
+        }
+        if (authUser && (!board.ownerUserId || String(board.ownerUserId) !== String(authUser._id))) {
+          updates.ownerUserId = authUser._id;
+        }
+        if (Object.keys(updates).length > 0) {
+          await Board.findOneAndUpdate({ boardId }, updates);
+        }
+
         return res.json({
           ownerName: board.ownerName,
           claimed: false,
           isOwner: true,
           ownerToken: issuedOwnerToken,
+          bypassToken: board.bypassToken || null,
         });
       }
 
-      return res.json({ ownerName: board.ownerName, claimed: false, isOwner: false });
+      if (!board.ownerTokenHash && sanitizedName === board.ownerName) {
+        const issuedOwnerToken = crypto.randomBytes(24).toString("hex");
+        const ownerTokenHash = await bcrypt.hash(issuedOwnerToken, 10);
+        await Board.findOneAndUpdate(
+          { boardId },
+          { ownerTokenHash, ...(authUser ? { ownerUserId: authUser._id } : {}) }
+        );
+        return res.json({
+          ownerName: board.ownerName,
+          claimed: false,
+          isOwner: true,
+          ownerToken: issuedOwnerToken,
+          bypassToken: board.bypassToken || null,
+        });
+      }
+
+      return res.json({ ownerName: board.ownerName, claimed: false, isOwner: false, bypassToken: board.bypassToken || null });
     }
 
     const issuedOwnerToken = crypto.randomBytes(24).toString("hex");
@@ -91,7 +148,7 @@ router.post("/:boardId/claim-owner", async (req, res) => {
 
     const updated = await Board.findOneAndUpdate(
       { boardId },
-      { boardId, ownerName: sanitizedName, ownerTokenHash },
+      { boardId, ownerName: sanitizedName, ownerUserId: authUser?._id || null, ownerTokenHash },
       { upsert: true, new: true }
     );
     res.json({

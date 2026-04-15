@@ -15,6 +15,11 @@ const boardSchema = new mongoose.Schema(
       trim: true,
       maxlength: 60,
     },
+    ownerUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     ownerTokenHash: {
       type: String,
       default: null,

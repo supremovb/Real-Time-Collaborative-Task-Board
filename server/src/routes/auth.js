@@ -149,7 +149,7 @@ router.get("/my-boards", verifyToken, async (req, res) => {
 
     // Get board details for each
     const boardDocs = await Board.find({ boardId: { $in: user.boards } })
-      .select("boardId ownerName passwordHash")
+      .select("boardId ownerName ownerUserId passwordHash")
       .lean();
 
     // Preserve user's board order, include all even if not in DB yet
@@ -159,7 +159,7 @@ router.get("/my-boards", verifyToken, async (req, res) => {
       return {
         boardId: id,
         ownerName: doc?.ownerName || null,
-        isOwner: doc?.ownerName === user.username,
+        isOwner: !!(doc && ((doc.ownerUserId && String(doc.ownerUserId) === String(user._id)) || doc.ownerName === user.username)),
         protected: !!(doc?.passwordHash),
       };
     });
