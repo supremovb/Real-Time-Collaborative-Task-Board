@@ -1,5 +1,6 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const Board = require("../models/Board");
 
@@ -12,6 +13,17 @@ function sanitizeBoardId(id) {
   return s || null;
 }
 
+function sanitizeOwnerToken(token) {
+  if (!token || typeof token !== "string") return null;
+  const sanitized = token.trim();
+  return sanitized || null;
+}
+
+async function hasOwnerAccess(board, ownerToken) {
+  if (!board || !board.ownerTokenHash || !ownerToken) return false;
+  return bcrypt.compare(ownerToken, board.ownerTokenHash);
+}
+
 // Strict rate limiter for password verify — 10 attempts per 15 min per IP
 const verifyLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -22,16 +34,74 @@ const verifyLimiter = rateLimit({
 });
 
 // GET /api/boards/:boardId/status
-// Returns whether a board has a password set
+// Returns whether a board has a password set and who the owner is
 router.get("/:boardId/status", async (req, res) => {
   try {
     const boardId = sanitizeBoardId(req.params.boardId);
     if (!boardId) return res.status(400).json({ error: "Invalid board ID" });
 
     const board = await Board.findOne({ boardId });
-    res.json({ protected: !!(board && board.passwordHash) });
+    res.json({
+      protected: !!(board && board.passwordHash),
+      ownerName: board?.ownerName || null,
+    });
   } catch {
     res.status(500).json({ error: "Failed to check board status" });
+  }
+});
+
+// POST /api/boards/:boardId/claim-owner
+// Set the owner name (only if not yet set)
+router.post("/:boardId/claim-owner", async (req, res) => {
+  try {
+    const boardId = sanitizeBoardId(req.params.boardId);
+    if (!boardId) return res.status(400).json({ error: "Invalid board ID" });
+
+    const { ownerName } = req.body;
+    const ownerToken = sanitizeOwnerToken(req.body.ownerToken);
+    if (!ownerName || typeof ownerName !== "string" || !ownerName.trim()) {
+      return res.status(400).json({ error: "Owner name is required" });
+    }
+    const sanitizedName = ownerName.trim().slice(0, 60);
+
+    const board = await Board.findOne({ boardId });
+    if (board && board.ownerName) {
+      if (await hasOwnerAccess(board, ownerToken)) {
+        return res.json({ ownerName: board.ownerName, claimed: false, isOwner: true });
+      }
+
+      // One-time migration path for boards created before owner tokens existed.
+      if (!board.ownerTokenHash && sanitizedName === board.ownerName) {
+        const issuedOwnerToken = crypto.randomBytes(24).toString("hex");
+        const ownerTokenHash = await bcrypt.hash(issuedOwnerToken, 10);
+        await Board.findOneAndUpdate({ boardId }, { ownerTokenHash });
+        return res.json({
+          ownerName: board.ownerName,
+          claimed: false,
+          isOwner: true,
+          ownerToken: issuedOwnerToken,
+        });
+      }
+
+      return res.json({ ownerName: board.ownerName, claimed: false, isOwner: false });
+    }
+
+    const issuedOwnerToken = crypto.randomBytes(24).toString("hex");
+    const ownerTokenHash = await bcrypt.hash(issuedOwnerToken, 10);
+
+    const updated = await Board.findOneAndUpdate(
+      { boardId },
+      { boardId, ownerName: sanitizedName, ownerTokenHash },
+      { upsert: true, new: true }
+    );
+    res.json({
+      ownerName: updated.ownerName,
+      claimed: true,
+      isOwner: true,
+      ownerToken: issuedOwnerToken,
+    });
+  } catch {
+    res.status(500).json({ error: "Failed to claim board owner" });
   }
 });
 
@@ -43,6 +113,7 @@ router.post("/:boardId/setup", async (req, res) => {
     if (!boardId) return res.status(400).json({ error: "Invalid board ID" });
 
     const { password } = req.body;
+    const ownerToken = sanitizeOwnerToken(req.body.ownerToken);
     if (!password || typeof password !== "string" || password.length < 4) {
       return res.status(400).json({ error: "Password must be at least 4 characters" });
     }
@@ -50,9 +121,11 @@ router.post("/:boardId/setup", async (req, res) => {
       return res.status(400).json({ error: "Password is too long" });
     }
 
-    // Check if board already has a password
     const existing = await Board.findOne({ boardId });
-    if (existing && existing.passwordHash) {
+    if (!existing || !(await hasOwnerAccess(existing, ownerToken))) {
+      return res.status(403).json({ error: "Only the board owner can set a password" });
+    }
+    if (existing.passwordHash) {
       return res.status(409).json({ error: "Board already has a password set" });
     }
 
@@ -60,8 +133,8 @@ router.post("/:boardId/setup", async (req, res) => {
 
     await Board.findOneAndUpdate(
       { boardId },
-      { boardId, passwordHash },
-      { upsert: true, new: true }
+      { passwordHash },
+      { new: true }
     );
 
     res.json({ success: true });
@@ -102,6 +175,7 @@ router.post("/:boardId/remove-password", verifyLimiter, async (req, res) => {
     if (!boardId) return res.status(400).json({ error: "Invalid board ID" });
 
     const { password } = req.body;
+    const ownerToken = sanitizeOwnerToken(req.body.ownerToken);
     if (!password || typeof password !== "string") {
       return res.status(400).json({ error: "Current password is required" });
     }
@@ -109,6 +183,9 @@ router.post("/:boardId/remove-password", verifyLimiter, async (req, res) => {
     const board = await Board.findOne({ boardId });
     if (!board || !board.passwordHash) {
       return res.status(404).json({ error: "Board is not password-protected" });
+    }
+    if (!(await hasOwnerAccess(board, ownerToken))) {
+      return res.status(403).json({ error: "Only the board owner can remove the password" });
     }
 
     const valid = await bcrypt.compare(password, board.passwordHash);

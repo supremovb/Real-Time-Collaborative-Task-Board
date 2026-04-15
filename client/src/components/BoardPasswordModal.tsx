@@ -10,6 +10,9 @@ interface Props {
   onCancel: () => void;
   loading?: boolean;
   error?: string;
+  titleOverride?: string;
+  descOverride?: string;
+  submitLabelOverride?: string;
   onSubmit: (password: string) => Promise<void>;
 }
 
@@ -20,6 +23,9 @@ export default function BoardPasswordModal({
   onCancel,
   loading: externalLoading,
   error: externalError,
+  titleOverride,
+  descOverride,
+  submitLabelOverride,
   onSubmit,
 }: Props) {
   const [password, setPassword] = useState("");
@@ -86,7 +92,7 @@ export default function BoardPasswordModal({
             </div>
             <div>
               <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-                {mode === "setup" ? "Protect This Board" : "Board Protected"}
+                {titleOverride ?? (mode === "setup" ? "Protect This Board" : "Board Protected")}
               </h2>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                 {boardId}
@@ -104,9 +110,9 @@ export default function BoardPasswordModal({
 
         {/* Description */}
         <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
-          {mode === "setup"
+          {descOverride ?? (mode === "setup"
             ? "Set a password so only people with the password can access this board."
-            : "This board is password-protected. Enter the password to continue."}
+            : "This board is password-protected. Enter the password to continue.")}
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -199,9 +205,7 @@ export default function BoardPasswordModal({
               )}
               {isLoading
                 ? "Please wait…"
-                : mode === "setup"
-                ? "Set Password"
-                : "Enter Board"}
+                : submitLabelOverride ?? (mode === "setup" ? "Set Password" : "Enter Board")}
             </button>
           </div>
         </form>

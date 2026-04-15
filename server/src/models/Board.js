@@ -9,6 +9,16 @@ const boardSchema = new mongoose.Schema(
       trim: true,
       maxlength: 50,
     },
+    ownerName: {
+      type: String,
+      default: null,
+      trim: true,
+      maxlength: 60,
+    },
+    ownerTokenHash: {
+      type: String,
+      default: null,
+    },
     passwordHash: {
       type: String,
       default: null,

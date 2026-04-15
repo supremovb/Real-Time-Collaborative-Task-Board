@@ -9,9 +9,11 @@ const SocketContext = createContext<Socket | null>(null);
 
 export function SocketProvider({
   boardId,
+  userName,
   children,
 }: {
   boardId: string;
+  userName: string;
   children: React.ReactNode;
 }) {
   const socketRef = useRef<Socket | null>(null);
@@ -25,13 +27,13 @@ export function SocketProvider({
   useEffect(() => {
     const socket = socketRef.current!;
     socket.connect();
-    socket.emit("board:join", boardId);
+    socket.emit("board:join", { boardId, userName });
 
     return () => {
       socket.emit("board:leave", boardId);
       socket.disconnect();
     };
-  }, [boardId]);
+  }, [boardId, userName]);
 
   return (
     <SocketContext.Provider value={socketRef.current}>

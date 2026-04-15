@@ -7,7 +7,7 @@ import { KanbanIcon, ZapIcon, TargetIcon, ShieldIcon, SunIcon, MoonIcon } from "
 import { useTheme } from "@/context/ThemeContext";
 import BoardPasswordModal from "@/components/BoardPasswordModal";
 import CreditsModal from "@/components/CreditsModal";
-import { getBoardStatus, setupBoardPassword, verifyBoardPassword } from "@/lib/api";
+import { getBoardStatus, setupBoardPassword, verifyBoardPassword, claimBoardOwner } from "@/lib/api";
 
 const MAX_RECENT = 5;
 
@@ -26,6 +26,19 @@ function removeRecentBoard(id: string) {
     const list = getRecentBoards().filter((b) => b !== id);
     localStorage.setItem("recentBoards", JSON.stringify(list));
   } catch { /* ignore */ }
+}
+
+function getOwnerToken(id: string): string | null {
+  try { return localStorage.getItem(`board_owner_${id}`); }
+  catch { return null; }
+}
+function saveOwnerToken(id: string, token: string) {
+  try { localStorage.setItem(`board_owner_${id}`, token); }
+  catch { /* ignore */ }
+}
+function removeOwnerToken(id: string) {
+  try { localStorage.removeItem(`board_owner_${id}`); }
+  catch { /* ignore */ }
 }
 
 function isBoardUnlocked(id: string): boolean {
@@ -50,6 +63,11 @@ type ModalState =
 export default function Home() {
   const [boardId, setBoardId] = useState("");
   const [inputValue, setInputValue] = useState("");
+  const [userName, setUserName] = useState("");
+  const [nameError, setNameError] = useState(false);
+  const [ownerName, setOwnerName] = useState<string | null>(null);
+  const [ownerToken, setOwnerToken] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [joined, setJoined] = useState(false);
   const [recentBoards, setRecentBoards] = useState<string[]>([]);
   const [modal, setModal] = useState<ModalState>({ open: false });
@@ -59,48 +77,104 @@ export default function Home() {
 
   useEffect(() => {
     setRecentBoards(getRecentBoards());
-    // Auto-join from shared link: ?board=<boardId>
+    let savedName = "";
+    try {
+      savedName = localStorage.getItem("taskboard_username") || "";
+      if (savedName) setUserName(savedName);
+    } catch { /* ignore */ }
+
     const params = new URLSearchParams(window.location.search);
     const sharedBoard = params.get("board");
     if (sharedBoard) {
-      handleJoin(sharedBoard);
+      setInputValue(sharedBoard);
+      if (savedName.trim()) {
+        void handleJoin(sharedBoard, savedName);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleJoin(id?: string) {
+  async function syncOwnerState(id: string, name: string) {
+    const existingOwnerToken = getOwnerToken(id);
+    try {
+      const result = await claimBoardOwner(id, name, existingOwnerToken);
+      setOwnerName(result.ownerName);
+      setIsOwner(result.isOwner);
+
+      if (result.ownerToken) {
+        saveOwnerToken(id, result.ownerToken);
+        setOwnerToken(result.ownerToken);
+      } else if (result.isOwner && existingOwnerToken) {
+        setOwnerToken(existingOwnerToken);
+      } else {
+        removeOwnerToken(id);
+        setOwnerToken(null);
+      }
+
+      return result;
+    } catch {
+      setOwnerName(null);
+      setIsOwner(false);
+      setOwnerToken(null);
+      return null;
+    }
+  }
+
+  async function claimOwnerAndJoin(id: string, name: string, skipSync = false) {
+    if (!skipSync) {
+      await syncOwnerState(id, name);
+    }
+    saveRecentBoard(id);
+    setBoardId(id);
+    window.history.pushState({}, "", `?board=${encodeURIComponent(id)}`);
+    setJoined(true);
+  }
+
+  async function handleJoin(id?: string, providedName?: string) {
+    const name = (providedName ?? userName).trim();
+    if (!name) {
+      setNameError(true);
+      return;
+    }
+    setNameError(false);
+    setUserName(name);
+    // Save name to localStorage
+    try { localStorage.setItem("taskboard_username", name); } catch { /* ignore */ }
+
     const raw = (id ?? inputValue).trim();
     const sanitized = raw.replace(/[^a-zA-Z0-9-_]/g, "") || "default";
 
     // If already unlocked this session, join directly
     if (isBoardUnlocked(sanitized)) {
-      saveRecentBoard(sanitized);
-      setBoardId(sanitized);
-      window.history.pushState({}, "", `?board=${encodeURIComponent(sanitized)}`);
-      setJoined(true);
+      await claimOwnerAndJoin(sanitized, name);
       return;
     }
 
     // Check board password status
     try {
       const status = await getBoardStatus(sanitized);
+      setOwnerName(status.ownerName);
+      setIsOwner(false);
       if (status.protected) {
         // Board has a password — show verify modal
         setBoardId(sanitized);
         setModalError("");
         setModal({ open: true, boardId: sanitized, mode: "verify" });
       } else {
-        // No password yet — offer to set one (skippable)
-        setBoardId(sanitized);
-        setModalError("");
-        setModal({ open: true, boardId: sanitized, mode: "setup" });
+        const ownerResult = await syncOwnerState(sanitized, name);
+        if (ownerResult?.isOwner) {
+          // New or returning owner can decide whether to protect the board.
+          setBoardId(sanitized);
+          setModalError("");
+          setModal({ open: true, boardId: sanitized, mode: "setup" });
+        } else {
+          setBoardUnlocked(sanitized);
+          await claimOwnerAndJoin(sanitized, name, true);
+        }
       }
     } catch {
       // If status check fails, allow entry without password
-      saveRecentBoard(sanitized);
-      setBoardId(sanitized);
-      window.history.pushState({}, "", `?board=${encodeURIComponent(sanitized)}`);
-      setJoined(true);
+      await claimOwnerAndJoin(sanitized, name);
     }
   }
 
@@ -110,12 +184,10 @@ export default function Home() {
     setModalError("");
 
     if (mode === "setup") {
-      await setupBoardPassword(id, password);
+      await setupBoardPassword(id, password, ownerToken);
       setBoardUnlocked(id);
-      saveRecentBoard(id);
       setModal({ open: false });
-      window.history.pushState({}, "", `?board=${encodeURIComponent(id)}`);
-      setJoined(true);
+      await claimOwnerAndJoin(id, userName.trim());
     } else {
       const { valid } = await verifyBoardPassword(id, password);
       if (!valid) {
@@ -123,23 +195,19 @@ export default function Home() {
         return;
       }
       setBoardUnlocked(id);
-      saveRecentBoard(id);
       setModal({ open: false });
-      window.history.pushState({}, "", `?board=${encodeURIComponent(id)}`);
-      setJoined(true);
+      await claimOwnerAndJoin(id, userName.trim());
     }
   }
 
-  function handleModalCancel() {
+  async function handleModalCancel() {
     if (!modal.open) return;
     const { boardId: id, mode } = modal;
     if (mode === "setup") {
       // User skipped setting a password — enter board without one
       setBoardUnlocked(id);
-      saveRecentBoard(id);
       setModal({ open: false });
-      window.history.pushState({}, "", `?board=${encodeURIComponent(id)}`);
-      setJoined(true);
+      await claimOwnerAndJoin(id, userName.trim());
     } else {
       // Verify cancelled — go back to landing
       setModal({ open: false });
@@ -156,6 +224,9 @@ export default function Home() {
     window.history.pushState({}, "", window.location.pathname);
     setJoined(false);
     setInputValue("");
+    setOwnerName(null);
+    setOwnerToken(null);
+    setIsOwner(false);
     setRecentBoards(getRecentBoards());
   }
 
@@ -167,8 +238,15 @@ export default function Home() {
 
   if (joined) {
     return (
-      <SocketProvider boardId={boardId}>
-        <Board boardId={boardId} onLeave={handleLeave} />
+      <SocketProvider boardId={boardId} userName={userName}>
+        <Board
+          boardId={boardId}
+          userName={userName}
+          ownerName={ownerName}
+          ownerToken={ownerToken}
+          isOwner={isOwner}
+          onLeave={handleLeave}
+        />
       </SocketProvider>
     );
   }
@@ -223,6 +301,21 @@ export default function Home() {
           className="glass rounded-2xl p-6 animate-fade-in"
           style={{ boxShadow: "var(--shadow-lg)", animationDelay: "0.05s" }}
         >
+          <label className="field-label">Your Name <span style={{ color: "var(--accent-red)" }}>*</span></label>
+          <input
+            className="field-input text-base mb-1"
+            placeholder="Enter your name"
+            value={userName}
+            onChange={(e) => { setUserName(e.target.value); if (nameError) setNameError(false); }}
+            onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+            maxLength={60}
+            autoFocus
+            autoComplete="name"
+          />
+          {nameError && (
+            <p className="text-xs mb-3" style={{ color: "var(--accent-red)" }}>Name is required</p>
+          )}
+          {!nameError && <div className="mb-3" />}
           <label className="field-label">Board Name</label>
           <input
             className="field-input text-base mb-4"
@@ -231,7 +324,6 @@ export default function Home() {
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleJoin()}
             maxLength={50}
-            autoFocus
           />
           <button
             onClick={() => handleJoin()}

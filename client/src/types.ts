@@ -21,6 +21,15 @@ export interface ColumnDef {
   gradient: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  type: "user" | "system";
+  senderName?: string;
+  senderId?: string;
+  text: string;
+  timestamp: number;
+}
+
 export const COLUMNS: ColumnDef[] = [
   { id: "todo",        title: "To Do",      color: "#6366f1", gradient: "linear-gradient(135deg,#6366f1,#8b5cf6)" },
   { id: "in-progress", title: "In Progress", color: "#f59e0b", gradient: "linear-gradient(135deg,#f59e0b,#ef4444)" },

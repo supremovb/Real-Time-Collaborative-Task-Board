@@ -55,16 +55,16 @@ export async function deleteTask(id: string) {
   return handleResponse(res);
 }
 
-export async function getBoardStatus(boardId: string): Promise<{ protected: boolean }> {
+export async function getBoardStatus(boardId: string): Promise<{ protected: boolean; ownerName: string | null }> {
   const res = await fetch(`${API_URL}/api/boards/${encodeURIComponent(boardId)}/status`);
   return handleResponse(res);
 }
 
-export async function setupBoardPassword(boardId: string, password: string): Promise<void> {
+export async function setupBoardPassword(boardId: string, password: string, ownerToken?: string | null): Promise<void> {
   const res = await fetch(`${API_URL}/api/boards/${encodeURIComponent(boardId)}/setup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ password, ownerToken }),
   });
   return handleResponse(res);
 }
@@ -78,11 +78,24 @@ export async function verifyBoardPassword(boardId: string, password: string): Pr
   return handleResponse(res);
 }
 
-export async function removeBoardPassword(boardId: string, password: string): Promise<void> {
+export async function removeBoardPassword(boardId: string, password: string, ownerToken?: string | null): Promise<void> {
   const res = await fetch(`${API_URL}/api/boards/${encodeURIComponent(boardId)}/remove-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ password, ownerToken }),
+  });
+  return handleResponse(res);
+}
+
+export async function claimBoardOwner(
+  boardId: string,
+  ownerName: string,
+  ownerToken?: string | null
+): Promise<{ ownerName: string; claimed: boolean; isOwner: boolean; ownerToken?: string }> {
+  const res = await fetch(`${API_URL}/api/boards/${encodeURIComponent(boardId)}/claim-owner`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ownerName, ownerToken }),
   });
   return handleResponse(res);
 }

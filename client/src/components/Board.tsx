@@ -21,13 +21,16 @@ import Column from "./Column";
 import TaskCard from "./TaskCard";
 import AddTaskForm from "./AddTaskForm";
 import TaskModal from "./TaskModal";
+import Chat from "./Chat";
+import BoardPasswordModal from "./BoardPasswordModal";
 import { useSocket } from "@/context/SocketContext";
 import { useToast } from "@/context/ToastContext";
-import { fetchTasks, moveTask } from "@/lib/api";
+import { fetchTasks, getBoardStatus, moveTask, setupBoardPassword, removeBoardPassword } from "@/lib/api";
 import { Task, COLUMNS, ColumnId, Priority } from "@/types";
 import {
   KanbanIcon, UsersIcon, SearchIcon, XIcon,
   ArrowLeftIcon, FilterIcon, SortIcon, CopyIcon, SunIcon, MoonIcon,
+  MessageIcon, LockIcon, UnlockIcon,
 } from "./Icons";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -40,12 +43,24 @@ const SORT_LABELS: Record<SortMode, string> = {
 };
 const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
-export default function Board({ boardId, onLeave }: { boardId: string; onLeave: () => void }) {
+export default function Board({ boardId, userName, ownerName, ownerToken, isOwner, onLeave }: {
+  boardId: string;
+  userName: string;
+  ownerName: string | null;
+  ownerToken: string | null;
+  isOwner: boolean;
+  onLeave: () => void;
+}) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [modalTask, setModalTask] = useState<Task | null>(null);
   const [connected, setConnected] = useState(false);
   const [userCount, setUserCount] = useState(1);
+  const [members, setMembers] = useState<string[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [isProtected, setIsProtected] = useState(false);
+  const [pwModal, setPwModal] = useState<"setup" | "remove" | null>(null);
+  const [pwError, setPwError] = useState("");
   const [search, setSearch] = useState("");
   const [filterPriority, setFilterPriority] = useState<Priority | "all">("all");
   const [sortMode, setSortMode] = useState<SortMode>("order");
@@ -66,6 +81,22 @@ export default function Board({ boardId, onLeave }: { boardId: string; onLeave: 
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBoardStatus() {
+      try {
+        const status = await getBoardStatus(boardId);
+        if (!cancelled) setIsProtected(status.protected);
+      } catch {
+        if (!cancelled) setIsProtected(false);
+      }
+    }
+
+    void loadBoardStatus();
+    return () => { cancelled = true; };
+  }, [boardId]);
+
   // Socket events
   useEffect(() => {
     if (!socket) return;
@@ -73,6 +104,7 @@ export default function Board({ boardId, onLeave }: { boardId: string; onLeave: 
     const onConnect    = () => setConnected(true);
     const onDisconnect = () => setConnected(false);
     const onUsers      = (n: number) => setUserCount(n);
+    const onMembers    = (m: string[]) => setMembers(m);
 
     const onTaskCreated = (task: Task) =>
       setTasks((prev) => prev.find((t) => t._id === task._id) ? prev : [...prev, task]);
@@ -88,6 +120,7 @@ export default function Board({ boardId, onLeave }: { boardId: string; onLeave: 
     socket.on("connect",       onConnect);
     socket.on("disconnect",    onDisconnect);
     socket.on("room:users",    onUsers);
+    socket.on("room:members",  onMembers);
     socket.on("task:created",  onTaskCreated);
     socket.on("task:updated",  onTaskUpdated);
     socket.on("task:deleted",  onTaskDeleted);
@@ -99,6 +132,7 @@ export default function Board({ boardId, onLeave }: { boardId: string; onLeave: 
       socket.off("connect",       onConnect);
       socket.off("disconnect",    onDisconnect);
       socket.off("room:users",    onUsers);
+      socket.off("room:members",  onMembers);
       socket.off("task:created",  onTaskCreated);
       socket.off("task:updated",  onTaskUpdated);
       socket.off("task:deleted",  onTaskDeleted);
@@ -261,6 +295,17 @@ export default function Board({ boardId, onLeave }: { boardId: string; onLeave: 
           >
             {boardId}
           </span>
+          {/* Owner badge */}
+          {ownerName && (
+            <span
+              className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs shrink-0"
+              style={{ background: "rgba(99,102,241,0.1)", color: "var(--accent-indigo)", border: "1px solid rgba(99,102,241,0.25)" }}
+              title={isOwner ? "You are the board owner" : `Board owner: ${ownerName}`}
+            >
+              <LockIcon size={11} />
+              {isOwner ? "Owner" : ownerName}
+            </span>
+          )}
           {/* Progress — hidden on very small screens */}
           {totalTasks > 0 && (
             <div className="hidden md:flex items-center gap-2 shrink-0">
@@ -302,6 +347,40 @@ export default function Board({ boardId, onLeave }: { boardId: string; onLeave: 
             <span className="hidden sm:inline">{userCount} online</span>
             <span className="sm:hidden">{userCount}</span>
           </div>
+
+          {/* Chat toggle */}
+          <button
+            onClick={() => setChatOpen((v) => !v)}
+            title="Board chat"
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+            style={{
+              background: chatOpen ? "rgba(99,102,241,0.12)" : "var(--bg-card)",
+              color: chatOpen ? "var(--accent-indigo)" : "var(--text-secondary)",
+              border: `1px solid ${chatOpen ? "rgba(99,102,241,0.4)" : "var(--border)"}`,
+              transition: "all 0.2s",
+            }}
+          >
+            <MessageIcon size={13} />
+            <span className="hidden sm:inline">Chat</span>
+          </button>
+
+          {/* Owner password management */}
+          {isOwner && (
+            <button
+              onClick={() => { setPwError(""); setPwModal(isProtected ? "remove" : "setup"); }}
+              title={isProtected ? "Remove board password" : "Set board password"}
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+              style={{
+                background: "var(--bg-card)",
+                color: isProtected ? "var(--accent-indigo)" : "var(--text-secondary)",
+                border: `1px solid ${isProtected ? "rgba(99,102,241,0.4)" : "var(--border)"}`,
+                transition: "all 0.2s",
+              }}
+            >
+              {isProtected ? <UnlockIcon size={13} /> : <LockIcon size={13} />}
+              <span className="hidden sm:inline">{isProtected ? "Unlock" : "Lock"}</span>
+            </button>
+          )}
 
           {/* Connection dot */}
           <div className="flex items-center gap-1 text-xs px-2 py-1.5">
@@ -513,6 +592,53 @@ export default function Board({ boardId, onLeave }: { boardId: string; onLeave: 
           onSaved={(updated) =>
             setTasks((prev) => prev.map((t) => (t._id === updated._id ? updated : t)))
           }
+        />
+      )}
+
+      {chatOpen && socket && (
+        <Chat
+          socket={socket}
+          boardId={boardId}
+          userName={userName}
+          members={members}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
+
+      {pwModal && (
+        <BoardPasswordModal
+          boardId={boardId}
+          mode={pwModal === "setup" ? "setup" : "verify"}
+          onSuccess={() => {}}
+          onCancel={() => { setPwModal(null); setPwError(""); }}
+          error={pwError}
+          titleOverride={pwModal === "setup" ? "Protect This Board" : "Remove Board Password"}
+          descOverride={pwModal === "setup"
+            ? "Set a password so only people with the password can access this board."
+            : "Enter the current password to remove board protection for everyone."}
+          submitLabelOverride={pwModal === "setup" ? "Set Password" : "Remove Password"}
+          onSubmit={async (password) => {
+            if (!ownerToken) {
+              setPwError("Only the board owner can manage the board password.");
+              return;
+            }
+
+            try {
+              if (pwModal === "setup") {
+                await setupBoardPassword(boardId, password, ownerToken);
+                setIsProtected(true);
+                toast("Board password set", "success");
+              } else {
+                await removeBoardPassword(boardId, password, ownerToken);
+                setIsProtected(false);
+                toast("Board password removed", "success");
+              }
+              setPwError("");
+              setPwModal(null);
+            } catch (error) {
+              setPwError(error instanceof Error ? error.message : "Failed to update board password");
+            }
+          }}
         />
       )}
     </div>
