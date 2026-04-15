@@ -21,30 +21,19 @@ export default function Chat({
   boardId,
   userName,
   members,
+  messages,
   onClose,
 }: {
   socket: Socket;
   boardId: string;
   userName: string;
   members: string[];
+  messages: ChatMessage[];
   onClose: () => void;
 }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    function onHistory(msgs: ChatMessage[]) { setMessages(msgs); }
-    function onMessage(msg: ChatMessage) { setMessages((prev) => [...prev, msg]); }
-
-    socket.on("chat:history", onHistory);
-    socket.on("chat:message", onMessage);
-    return () => {
-      socket.off("chat:history", onHistory);
-      socket.off("chat:message", onMessage);
-    };
-  }, [socket]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {

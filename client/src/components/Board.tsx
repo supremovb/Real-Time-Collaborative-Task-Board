@@ -26,7 +26,7 @@ import BoardPasswordModal from "./BoardPasswordModal";
 import { useSocket } from "@/context/SocketContext";
 import { useToast } from "@/context/ToastContext";
 import { fetchTasks, getBoardStatus, moveTask, setupBoardPassword, removeBoardPassword } from "@/lib/api";
-import { Task, COLUMNS, ColumnId, Priority } from "@/types";
+import { Task, ChatMessage, COLUMNS, ColumnId, Priority } from "@/types";
 import {
   KanbanIcon, UsersIcon, SearchIcon, XIcon,
   ArrowLeftIcon, FilterIcon, SortIcon, CopyIcon, SunIcon, MoonIcon,
@@ -58,6 +58,8 @@ export default function Board({ boardId, userName, ownerName, ownerToken, isOwne
   const [userCount, setUserCount] = useState(1);
   const [members, setMembers] = useState<string[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isProtected, setIsProtected] = useState(false);
   const [pwModal, setPwModal] = useState<"setup" | "remove" | null>(null);
   const [pwError, setPwError] = useState("");
@@ -117,28 +119,45 @@ export default function Board({ boardId, userName, ownerName, ownerToken, isOwne
 
     const onBoardUpdated = (all: Task[]) => setTasks(all);
 
-    socket.on("connect",       onConnect);
-    socket.on("disconnect",    onDisconnect);
-    socket.on("room:users",    onUsers);
-    socket.on("room:members",  onMembers);
-    socket.on("task:created",  onTaskCreated);
-    socket.on("task:updated",  onTaskUpdated);
-    socket.on("task:deleted",  onTaskDeleted);
-    socket.on("board:updated", onBoardUpdated);
+    const onChatHistory = (msgs: ChatMessage[]) => setChatMessages(msgs);
+    const onChatMessage = (msg: ChatMessage) => {
+      setChatMessages((prev) => [...prev, msg]);
+      // Show unread badge when chat is closed; show join toast for other users
+      if (msg.type === "system" && msg.text && !msg.text.startsWith(userName)) {
+        toast(msg.text, "info");
+      }
+      setChatOpen((open) => {
+        if (!open) setUnreadCount((n) => n + 1);
+        return open;
+      });
+    };
+
+    socket.on("connect",        onConnect);
+    socket.on("disconnect",     onDisconnect);
+    socket.on("room:users",     onUsers);
+    socket.on("room:members",   onMembers);
+    socket.on("task:created",   onTaskCreated);
+    socket.on("task:updated",   onTaskUpdated);
+    socket.on("task:deleted",   onTaskDeleted);
+    socket.on("board:updated",  onBoardUpdated);
+    socket.on("chat:history",   onChatHistory);
+    socket.on("chat:message",   onChatMessage);
 
     if (socket.connected) setConnected(true);
 
     return () => {
-      socket.off("connect",       onConnect);
-      socket.off("disconnect",    onDisconnect);
-      socket.off("room:users",    onUsers);
-      socket.off("room:members",  onMembers);
-      socket.off("task:created",  onTaskCreated);
-      socket.off("task:updated",  onTaskUpdated);
-      socket.off("task:deleted",  onTaskDeleted);
-      socket.off("board:updated", onBoardUpdated);
+      socket.off("connect",        onConnect);
+      socket.off("disconnect",     onDisconnect);
+      socket.off("room:users",     onUsers);
+      socket.off("room:members",   onMembers);
+      socket.off("task:created",   onTaskCreated);
+      socket.off("task:updated",   onTaskUpdated);
+      socket.off("task:deleted",   onTaskDeleted);
+      socket.off("board:updated",  onBoardUpdated);
+      socket.off("chat:history",   onChatHistory);
+      socket.off("chat:message",   onChatMessage);
     };
-  }, [socket]);
+  }, [socket, userName, toast]);
 
   // Close sort dropdown on outside click
   useEffect(() => {
@@ -350,9 +369,9 @@ export default function Board({ boardId, userName, ownerName, ownerToken, isOwne
 
           {/* Chat toggle */}
           <button
-            onClick={() => setChatOpen((v) => !v)}
+            onClick={() => { setChatOpen((v) => !v); setUnreadCount(0); }}
             title="Board chat"
-            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+            className="relative flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
             style={{
               background: chatOpen ? "rgba(99,102,241,0.12)" : "var(--bg-card)",
               color: chatOpen ? "var(--accent-indigo)" : "var(--text-secondary)",
@@ -362,6 +381,14 @@ export default function Board({ boardId, userName, ownerName, ownerToken, isOwne
           >
             <MessageIcon size={13} />
             <span className="hidden sm:inline">Chat</span>
+            {unreadCount > 0 && !chatOpen && (
+              <span
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
+                style={{ background: "#ef4444", fontSize: 9, fontWeight: 700 }}
+              >
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </button>
 
           {/* Owner password management */}
@@ -601,7 +628,8 @@ export default function Board({ boardId, userName, ownerName, ownerToken, isOwne
           boardId={boardId}
           userName={userName}
           members={members}
-          onClose={() => setChatOpen(false)}
+          messages={chatMessages}
+          onClose={() => { setChatOpen(false); setUnreadCount(0); }}
         />
       )}
 
